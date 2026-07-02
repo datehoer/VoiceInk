@@ -3,10 +3,44 @@ import Foundation
 enum TranscriptionPromptSettings {
     static let userDefaultsKey = "TranscriptionPrompt"
     static let customLanguagePromptsKey = "CustomLanguagePrompts"
+    static let defaultPrompt = "Transcribe the speech accurately. Preserve names, product terms, numbers, dates, emails, URLs, and formatting cues. Return only the transcribed text."
+    private static let legacyDefaultPrompts: Set<String> = [
+        "Hello, how are you doing? Nice to meet you.",
+        "नमस्ते, कैसे हैं आप? आपसे मिलकर अच्छा लगा।",
+        "নমস্কার, কেমন আছেন? আপনার সাথে দেখা হয়ে ভালো লাগলো।",
+        "こんにちは、お元気ですか？お会いできて嬉しいです。",
+        "안녕하세요, 잘 지내시나요? 만나서 반갑습니다.",
+        "你好，最近好吗？见到你很高兴。",
+        "สวัสดีครับ/ค่ะ, สบายดีไหม? ยินดีที่ได้พบคุณ",
+        "Xin chào, bạn khỏe không? Rất vui được gặp bạn.",
+        "你好，最近點呀？見到你好開心。",
+        "¡Hola, ¿cómo estás? Encantado de conocerte.",
+        "Bonjour, comment allez-vous? Ravi de vous rencontrer.",
+        "Hallo, wie geht es dir? Schön dich kennenzulernen.",
+        "Ciao, come stai? Piacere di conoscerti.",
+        "Olá, como você está? Prazer em conhecê-lo.",
+        "Здравствуйте, как ваши дела? Приятно познакомиться.",
+        "Cześć, jak się masz? Miło cię poznać.",
+        "Hallo, hoe gaat het? Aangenaam kennis te maken.",
+        "Merhaba, nasılsın? Tanıştığımıza memnun oldum.",
+        "مرحباً، كيف حالك؟ سعيد بلقائك.",
+        "سلام، حال شما چطور است؟ از آشنایی با شما خوشوقتم.",
+        ",שלום, מה שלומך? נעים להכיר",
+        "வணக்கம், எப்படி இருக்கிறீர்கள்? உங்களை சந்தித்ததில் மகிழ்ச்சி.",
+        "నమస్కారం, ఎలా ఉన్నారు? కలవడం చాలా సంతోషం.",
+        "നമസ്കാരം, സുഖമാണോ? കണ്ടതിൽ സന്തോഷം.",
+        "ನಮಸ್ಕಾರ, ಹೇಗಿದ್ದೀರಾ? ನಿಮ್ಮನ್ನು ಭೇಟಿಯಾಗಿ ಸಂತೋಷವಾಗಿದೆ.",
+        "السلام علیکم، کیسے ہیں آپ؟ آپ سے مل کر خوشی ہوئی۔"
+    ]
 
-    static func currentPrompt(in defaults: UserDefaults = .standard) -> String? {
+    static func currentPrompt(in defaults: UserDefaults = .standard) -> String {
         let prompt = defaults.string(forKey: userDefaultsKey) ?? ""
-        return prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : prompt
+        return promptOrDefault(prompt)
+    }
+
+    static func promptOrDefault(_ prompt: String?) -> String {
+        guard let prompt else { return defaultPrompt }
+        return isDefaultSelection(prompt) ? defaultPrompt : prompt
     }
 
     static func saveCustomPrompt(_ prompt: String, for language: String, in defaults: UserDefaults = .standard) {
@@ -14,23 +48,32 @@ enum TranscriptionPromptSettings {
         guard !trimmedLanguage.isEmpty else { return }
 
         var customPrompts = defaults.dictionary(forKey: customLanguagePromptsKey) as? [String: String] ?? [:]
-        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedPrompt.isEmpty {
+        if isDefaultSelection(prompt) {
             customPrompts.removeValue(forKey: trimmedLanguage)
+            defaults.set("", forKey: userDefaultsKey)
         } else {
             customPrompts[trimmedLanguage] = prompt
+            defaults.set(prompt, forKey: userDefaultsKey)
         }
 
         defaults.set(customPrompts, forKey: customLanguagePromptsKey)
-        defaults.set(prompt, forKey: userDefaultsKey)
         defaults.synchronize()
         NotificationCenter.default.post(name: .promptDidChange, object: nil)
+    }
+
+    static func isDefaultSelection(_ prompt: String) -> Bool {
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedPrompt.isEmpty || trimmedPrompt == defaultPrompt || legacyDefaultPrompts.contains(trimmedPrompt)
     }
 }
 
 struct TranscriptionRequestContext {
     let language: String?
     let prompt: String?
+
+    var effectivePrompt: String {
+        TranscriptionPromptSettings.promptOrDefault(prompt)
+    }
 
     static var currentDefaults: TranscriptionRequestContext {
         TranscriptionRequestContext(

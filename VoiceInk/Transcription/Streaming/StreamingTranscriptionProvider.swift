@@ -39,6 +39,7 @@ enum StreamingTranscriptionError: LocalizedError {
 protocol StreamingTranscriptionProvider: AnyObject {
     /// Connect to the streaming transcription endpoint
     func connect(model: any TranscriptionModel, language: String?) async throws
+    func connect(model: any TranscriptionModel, language: String?, prompt: String?) async throws
 
     /// Send a chunk of raw PCM audio data (16-bit, 16kHz, mono, little-endian)
     func sendAudioChunk(_ data: Data) async throws
@@ -51,4 +52,10 @@ protocol StreamingTranscriptionProvider: AnyObject {
 
     /// Stream of transcription events from the provider
     var transcriptionEvents: AsyncStream<StreamingTranscriptionEvent> { get }
+}
+
+extension StreamingTranscriptionProvider {
+    func connect(model: any TranscriptionModel, language: String?, prompt _: String?) async throws {
+        try await connect(model: model, language: language)
+    }
 }

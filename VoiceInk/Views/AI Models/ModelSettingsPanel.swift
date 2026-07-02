@@ -128,13 +128,13 @@ private struct TranscriptionModelSettingsView: View {
 }
 
 private struct TranscriptionPromptSettingsSection: View {
-    @AppStorage(TranscriptionPromptSettings.userDefaultsKey) private var transcriptionPrompt = ""
+    @AppStorage(TranscriptionPromptSettings.userDefaultsKey) private var storedPrompt = ""
     @AppStorage("SelectedLanguage") private var selectedLanguage = "en"
 
     var body: some View {
         Section {
             ZStack(alignment: .topLeading) {
-                TextEditor(text: $transcriptionPrompt)
+                TextEditor(text: promptBinding)
                     .font(.system(size: 12))
                     .frame(minHeight: 92)
                     .scrollContentBackground(.hidden)
@@ -148,7 +148,7 @@ private struct TranscriptionPromptSettingsSection: View {
                             )
                     )
 
-                if transcriptionPrompt.isEmpty {
+                if activePrompt.isEmpty {
                     Text("Add words, names, formatting hints, or domain context")
                         .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
@@ -159,22 +159,40 @@ private struct TranscriptionPromptSettingsSection: View {
             }
 
             HStack {
+                if isUsingDefaultPrompt {
+                    Label("Using default preset", systemImage: "checkmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
-                Button("Clear Prompt") {
-                    transcriptionPrompt = ""
+                Button("Use Default") {
                     savePrompt("")
                 }
-                .disabled(transcriptionPrompt.isEmpty)
+                .disabled(isUsingDefaultPrompt)
             }
         } header: {
             HStack(spacing: 4) {
                 Text("Transcription Prompt")
-                InfoTip("Sent as guidance to local Whisper, OpenAI-compatible transcription, Gemini transcription, and custom transcription templates that use {{prompt}}.")
+                InfoTip("Applies to every transcription model path that accepts prompt guidance. If you leave it on the preset, VoiceInk still sends the default prompt.")
             }
         }
-        .onChange(of: transcriptionPrompt) { _, newValue in
-            savePrompt(newValue)
-        }
+    }
+
+    private var activePrompt: String {
+        TranscriptionPromptSettings.promptOrDefault(storedPrompt)
+    }
+
+    private var isUsingDefaultPrompt: Bool {
+        TranscriptionPromptSettings.isDefaultSelection(storedPrompt)
+    }
+
+    private var promptBinding: Binding<String> {
+        Binding(
+            get: { activePrompt },
+            set: { newValue in
+                savePrompt(newValue)
+            }
+        )
     }
 
     private func savePrompt(_ prompt: String) {

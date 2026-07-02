@@ -67,7 +67,7 @@ class CloudTranscriptionService: TranscriptionService {
                 model: model.name,
                 language: language,
                 customVocabulary: getCustomDictionaryTerms(),
-                prompt: context.prompt,
+                prompt: context.effectivePrompt,
                 timeout: timeout
             )
         } catch let error as CloudTranscriptionError {

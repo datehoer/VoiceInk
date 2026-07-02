@@ -107,7 +107,7 @@ class OpenAICompatibleTranscriptionService {
 
     static func makeCustomJSONRequestBody(audioData: Data, modelName: String, context: TranscriptionRequestContext, audioFormat: String, template: String) throws -> Data {
         let selectedLanguage = context.language ?? "auto"
-        let prompt = context.prompt ?? ""
+        let prompt = context.effectivePrompt
         let replacements = [
             "{{model}}": modelName,
             "{{prompt}}": prompt,
@@ -162,9 +162,7 @@ class OpenAICompatibleTranscriptionService {
             field("language", selectedLanguage)
         }
 
-        if let prompt = context.prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            field("prompt", prompt)
-        }
+        field("prompt", context.effectivePrompt)
 
         append("--\(boundary)--\(crlf)")
         return body
@@ -196,9 +194,7 @@ class OpenAICompatibleTranscriptionService {
         if selectedLanguage != "auto" && !selectedLanguage.isEmpty {
             instruction += "\nAudio language: \(selectedLanguage)."
         }
-        if let prompt = context.prompt, !prompt.isEmpty {
-            instruction += "\nUse this transcription prompt/context as guidance: \(prompt)"
-        }
+        instruction += "\nUse this transcription prompt/context as guidance: \(context.effectivePrompt)"
         return instruction
     }
 

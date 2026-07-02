@@ -18,7 +18,7 @@ struct VoiceInkTests {
             modelName: "models/gemini-3.5-flash",
             context: TranscriptionRequestContext(
                 language: "auto",
-                prompt: "Hello, how are you doing? Nice to meet you."
+                prompt: "Use product names exactly."
             ),
             audioFormat: "wav"
         )
@@ -34,7 +34,7 @@ struct VoiceInkTests {
         let content = try #require(userMessage["content"] as? [[String: Any]])
         #expect(content.contains { part in
             part["type"] as? String == "text" &&
-                (part["text"] as? String)?.contains("Hello, how are you doing? Nice to meet you.") == true
+                (part["text"] as? String)?.contains("Use product names exactly.") == true
         })
         #expect(content.contains { part in
             guard part["type"] as? String == "input_audio",
@@ -91,6 +91,27 @@ struct VoiceInkTests {
         #expect(context.scoped(to: customModel).prompt == "Use product names exactly.")
     }
 
+    @Test func transcriptionPromptFallsBackToDefaultWhenUnsetOrBlank() throws {
+        let defaults = try #require(UserDefaults(suiteName: "VoiceInkTests.TranscriptionPrompt.\(UUID().uuidString)"))
+        defaults.removeObject(forKey: TranscriptionPromptSettings.userDefaultsKey)
+
+        #expect(TranscriptionPromptSettings.currentPrompt(in: defaults) == TranscriptionPromptSettings.defaultPrompt)
+
+        defaults.set("   \n", forKey: TranscriptionPromptSettings.userDefaultsKey)
+        #expect(TranscriptionPromptSettings.currentPrompt(in: defaults) == TranscriptionPromptSettings.defaultPrompt)
+        #expect(TranscriptionRequestContext(language: "en", prompt: nil).effectivePrompt == TranscriptionPromptSettings.defaultPrompt)
+    }
+
+    @Test func transcriptionPromptMigratesLegacyLanguageSampleToDefault() throws {
+        let defaults = try #require(UserDefaults(suiteName: "VoiceInkTests.LegacyTranscriptionPrompt.\(UUID().uuidString)"))
+        defaults.set("Hello, how are you doing? Nice to meet you.", forKey: TranscriptionPromptSettings.userDefaultsKey)
+
+        #expect(TranscriptionPromptSettings.currentPrompt(in: defaults) == TranscriptionPromptSettings.defaultPrompt)
+
+        defaults.set("你好，最近好吗？见到你很高兴。", forKey: TranscriptionPromptSettings.userDefaultsKey)
+        #expect(TranscriptionPromptSettings.currentPrompt(in: defaults) == TranscriptionPromptSettings.defaultPrompt)
+    }
+
     @Test func openAIAudioTranscriptionsRequestIncludesPromptField() throws {
         let boundary = "Boundary-Test"
         let body = OpenAICompatibleTranscriptionService.makeAudioTranscriptionsRequestBody(
@@ -104,6 +125,21 @@ struct VoiceInkTests {
 
         #expect(bodyString.contains("name=\"prompt\""))
         #expect(bodyString.contains("Use product names exactly."))
+    }
+
+    @Test func openAIAudioTranscriptionsRequestIncludesDefaultPromptField() throws {
+        let boundary = "Boundary-Test"
+        let body = OpenAICompatibleTranscriptionService.makeAudioTranscriptionsRequestBody(
+            audioData: Data([0x01, 0x02]),
+            fileName: "sample.wav",
+            modelName: "whisper-1",
+            boundary: boundary,
+            context: TranscriptionRequestContext(language: "en", prompt: nil)
+        )
+        let bodyString = try #require(String(data: body, encoding: .utf8))
+
+        #expect(bodyString.contains("name=\"prompt\""))
+        #expect(bodyString.contains(TranscriptionPromptSettings.defaultPrompt))
     }
 
     @Test func modelDiscoveryEndpointIsDerivedFromCommonOpenAICompatiblePaths() throws {

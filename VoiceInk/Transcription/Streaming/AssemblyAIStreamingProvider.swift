@@ -25,6 +25,10 @@ final class AssemblyAIStreamingProvider: StreamingTranscriptionProvider {
     }
 
     func connect(model: any TranscriptionModel, language: String?) async throws {
+        try await connect(model: model, language: language, prompt: TranscriptionPromptSettings.defaultPrompt)
+    }
+
+    func connect(model: any TranscriptionModel, language: String?, prompt: String?) async throws {
         guard let apiKey = APIKeyManager.shared.getAPIKey(forProvider: "AssemblyAI"), !apiKey.isEmpty else {
             throw StreamingTranscriptionError.missingAPIKey
         }
@@ -37,6 +41,7 @@ final class AssemblyAIStreamingProvider: StreamingTranscriptionProvider {
                 apiKey: apiKey,
                 model: model.name,
                 language: language,
+                prompt: prompt,
                 customVocabulary: getCustomDictionaryTerms()
             )
         } catch {
@@ -120,7 +125,7 @@ final class AssemblyAIStreamingProvider: StreamingTranscriptionProvider {
         case .timeout:
             return StreamingTranscriptionError.timeout
         default:
-            return StreamingTranscriptionError.serverError(llmError.localizedDescription ?? "Unknown error")
+            return StreamingTranscriptionError.serverError(llmError.localizedDescription)
         }
     }
 }

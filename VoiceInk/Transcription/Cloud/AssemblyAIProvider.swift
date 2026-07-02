@@ -34,12 +34,26 @@ struct AssemblyAIProvider: CloudProvider {
     ]}
 
     func transcribe(audioData: Data, fileName: String, apiKey: String, model: String, language: String?, customVocabulary: [String], timeout: TimeInterval) async throws -> String {
+        try await transcribe(
+            audioData: audioData,
+            fileName: fileName,
+            apiKey: apiKey,
+            model: model,
+            language: language,
+            customVocabulary: customVocabulary,
+            prompt: TranscriptionPromptSettings.defaultPrompt,
+            timeout: timeout
+        )
+    }
+
+    func transcribe(audioData: Data, fileName: String, apiKey: String, model: String, language: String?, customVocabulary: [String], prompt: String?, timeout: TimeInterval) async throws -> String {
         return try await AssemblyAIClient.transcribe(
             audioData: audioData,
             fileName: fileName,
             apiKey: apiKey,
             model: model,
             language: language,
+            prompt: prompt,
             customVocabulary: customVocabulary,
             timeout: timeout
         )

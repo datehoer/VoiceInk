@@ -59,7 +59,7 @@ struct GeminiProvider: CloudProvider {
             model: model,
             language: language,
             customVocabulary: customVocabulary,
-            prompt: nil,
+            prompt: TranscriptionPromptSettings.defaultPrompt,
             timeout: timeout
         )
     }
