@@ -21,6 +21,29 @@ enum ModelFilter: String, CaseIterable, Identifiable {
     }
 }
 
+enum ModelManagementPresentationStyle: Equatable {
+    case sidePanel
+    case centeredDialog
+}
+
+enum ModelManagementCustomEditorRoute: Identifiable, Equatable {
+    case transcription(UUID?)
+    case enhancement(UUID?)
+
+    var id: String {
+        switch self {
+        case .transcription(let modelID):
+            return "custom-transcription-\(modelID?.uuidString ?? "new")"
+        case .enhancement(let providerID):
+            return "custom-enhancement-\(providerID?.uuidString ?? "new")"
+        }
+    }
+
+    var presentationStyle: ModelManagementPresentationStyle {
+        .centeredDialog
+    }
+}
+
 struct ModelManagementView: View {
     @EnvironmentObject private var aiService: AIService
     @EnvironmentObject private var whisperModelManager: WhisperModelManager
@@ -32,6 +55,7 @@ struct ModelManagementView: View {
 
     @State private var selectedFilter: ModelFilter = .local
     @State private var activePanel: ModelManagementPanel?
+    @State private var activeCustomEditor: ModelManagementCustomEditorRoute?
 
     @State private var isShowingDeleteAlert = false
     @State private var alertTitle = ""
@@ -41,8 +65,6 @@ struct ModelManagementView: View {
     private enum ModelManagementPanel {
         case settings
         case cloudProvider(ProviderDescriptor)
-        case customTranscriptionModel(CustomCloudModel?)
-        case customEnhancementModel(CustomAIProviderConfig?)
     }
 
     private var isSettingsPanelOpen: Bool {
@@ -65,20 +87,28 @@ struct ModelManagementView: View {
         activePanel = nil
     }
 
+    private func closeCustomEditor() {
+        activeCustomEditor = nil
+    }
+
     private func toggleSettingsPanel() {
+        activeCustomEditor = nil
         activePanel = isSettingsPanelOpen ? nil : .settings
     }
 
     private func openCloudProviderPanel(_ descriptor: ProviderDescriptor) {
+        activeCustomEditor = nil
         activePanel = .cloudProvider(descriptor)
     }
 
     private func openCustomTranscriptionModelPanel(_ model: CustomCloudModel? = nil) {
-        activePanel = .customTranscriptionModel(model)
+        activePanel = nil
+        activeCustomEditor = .transcription(model?.id)
     }
 
     private func openCustomEnhancementModelPanel(_ provider: CustomAIProviderConfig? = nil) {
-        activePanel = .customEnhancementModel(provider)
+        activePanel = nil
+        activeCustomEditor = .enhancement(provider?.id)
     }
 
     var body: some View {
@@ -107,6 +137,10 @@ struct ModelManagementView: View {
         )) {
             modelPanelContent
         }
+        .sheet(item: $activeCustomEditor) { route in
+            customEditorDialogContent(for: route)
+                .frame(width: 560, height: 680)
+        }
         .alert(isPresented: $isShowingDeleteAlert) {
             Alert(
                 title: Text(alertTitle),
@@ -133,25 +167,31 @@ struct ModelManagementView: View {
                 .environmentObject(aiService)
                 .environmentObject(transcriptionModelManager)
                 .id(descriptor.id)
-        case .customTranscriptionModel(let model):
-            CustomTranscriptionModelEditorPanel(
-                editingModel: model,
-                customModelManager: customModelManager,
-                onClose: closePanel,
-                onSave: {
-                    transcriptionModelManager.refreshAllAvailableModels()
-                    closePanel()
-                }
-            )
-        case .customEnhancementModel(let provider):
-            CustomEnhancementModelEditorPanel(
-                editingProvider: provider,
-                manager: customAIProviderManager,
-                onClose: closePanel,
-                onSave: closePanel
-            )
         case nil:
             EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func customEditorDialogContent(for route: ModelManagementCustomEditorRoute) -> some View {
+        switch route {
+        case .transcription(let modelID):
+            CustomTranscriptionModelEditorPanel(
+                editingModel: customTranscriptionModel(with: modelID),
+                customModelManager: customModelManager,
+                onClose: closeCustomEditor,
+                onSave: {
+                    transcriptionModelManager.refreshAllAvailableModels()
+                    closeCustomEditor()
+                }
+            )
+        case .enhancement(let providerID):
+            CustomEnhancementModelEditorPanel(
+                editingProvider: customEnhancementProvider(with: providerID),
+                manager: customAIProviderManager,
+                onClose: closeCustomEditor,
+                onSave: closeCustomEditor
+            )
         }
     }
 
@@ -213,6 +253,7 @@ struct ModelManagementView: View {
                         selectedFilter = filter
                     }
                     activePanel = nil
+                    activeCustomEditor = nil
                 }) {
                     Text(filter.title)
                         .font(.system(size: 14, weight: selectedFilter == filter ? .semibold : .medium))
@@ -335,6 +376,16 @@ struct ModelManagementView: View {
             ($0.provider == .whisper || $0.provider == .nativeApple || $0.provider == .fluidAudio)
                 && transcriptionModelManager.isAvailableOnCurrentOS($0)
         }
+    }
+
+    private func customTranscriptionModel(with id: UUID?) -> CustomCloudModel? {
+        guard let id else { return nil }
+        return customModelManager.customModels.first { $0.id == id }
+    }
+
+    private func customEnhancementProvider(with id: UUID?) -> CustomAIProviderConfig? {
+        guard let id else { return nil }
+        return customAIProviderManager.providers.first { $0.id == id }
     }
 
     private func confirmDeleteLocalModel(_ model: any TranscriptionModel) {

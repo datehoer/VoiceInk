@@ -1,6 +1,37 @@
 import SwiftUI
 import AppKit
 
+enum CustomModelRowAction: String, CaseIterable, Identifiable {
+    case edit
+    case delete
+
+    static let visibleActions: [CustomModelRowAction] = [.edit, .delete]
+
+    var id: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .edit:
+            return "pencil"
+        case .delete:
+            return "trash"
+        }
+    }
+
+    var helpText: LocalizedStringResource {
+        switch self {
+        case .edit:
+            return "Edit Model"
+        case .delete:
+            return "Delete Model"
+        }
+    }
+
+    var isDestructive: Bool {
+        self == .delete
+    }
+}
+
 // MARK: - Custom Model Card View
 struct CustomModelCardView: View {
     let model: CustomCloudModel
@@ -75,25 +106,38 @@ struct CustomModelCardView: View {
         HStack(spacing: 8) {
             modelStatusPill("Configured", systemImage: "checkmark.circle")
 
-            Menu {
-                Button {
-                    editAction(model)
-                } label: {
-                    Label("Edit Model", systemImage: "pencil")
-                }
-                
-                Button(role: .destructive) {
-                    deleteAction()
-                } label: {
-                    Label("Delete Model", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 14))
+            CustomModelRowActionButton(rowAction: .edit) {
+                editAction(model)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .frame(width: 20, height: 20)
+
+            CustomModelRowActionButton(rowAction: .delete) {
+                deleteAction()
+            }
         }
+    }
+}
+
+struct CustomModelRowActionButton: View {
+    let rowAction: CustomModelRowAction
+    let action: () -> Void
+
+    var body: some View {
+        Button(role: rowAction.isDestructive ? .destructive : nil, action: action) {
+            Image(systemName: rowAction.systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(rowAction.isDestructive ? AppTheme.Status.error : .secondary)
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(AppTheme.Surface.control)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(AppTheme.Border.control.opacity(0.45), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .help(String(localized: rowAction.helpText))
+        .accessibilityLabel(String(localized: rowAction.helpText))
     }
 }

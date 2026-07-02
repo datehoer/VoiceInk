@@ -299,6 +299,24 @@ struct VoiceInkTests {
         )
     }
 
+    @Test func customModelEditorRoutesUseCenteredDialogPresentation() {
+        let modelID = UUID()
+        let providerID = UUID()
+
+        #expect(ModelManagementCustomEditorRoute.transcription(modelID).presentationStyle == .centeredDialog)
+        #expect(ModelManagementCustomEditorRoute.enhancement(providerID).presentationStyle == .centeredDialog)
+        #expect(ModelManagementCustomEditorRoute.transcription(modelID).id == "custom-transcription-\(modelID.uuidString)")
+        #expect(ModelManagementCustomEditorRoute.enhancement(providerID).id == "custom-enhancement-\(providerID.uuidString)")
+        #expect(ModelManagementCustomEditorRoute.transcription(nil).id == "custom-transcription-new")
+    }
+
+    @Test func customModelRowsExposeEditAndDeleteActionsAsSeparateButtons() {
+        #expect(CustomModelRowAction.visibleActions == [.edit, .delete])
+        #expect(CustomModelRowAction.edit.systemImage == "pencil")
+        #expect(CustomModelRowAction.delete.systemImage == "trash")
+        #expect(CustomModelRowAction.delete.isDestructive == true)
+    }
+
     @Test func customEnhancementJSONTemplateReplacesChatPlaceholders() throws {
         let body = try CustomEnhancementRequestTemplateRenderer.makeRequestBody(
             modelName: "models/gemini-3.5-flash",

@@ -156,16 +156,18 @@ private struct CustomEnhancementModelRow: View {
 
             Spacer()
 
-            Menu {
-                Button("Edit", action: onEdit)
-                Button("Delete", role: .destructive, action: onDelete)
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 14))
+            HStack(spacing: 8) {
+                ForEach(CustomModelRowAction.visibleActions) { rowAction in
+                    CustomModelRowActionButton(rowAction: rowAction) {
+                        switch rowAction {
+                        case .edit:
+                            onEdit()
+                        case .delete:
+                            onDelete()
+                        }
+                    }
+                }
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .frame(width: 22, height: 22)
         }
         .padding(14)
         .background(ProviderSurface(cornerRadius: 10))
