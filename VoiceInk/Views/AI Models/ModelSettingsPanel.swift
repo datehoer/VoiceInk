@@ -71,15 +71,57 @@ private struct ModelSettingsTabBar: View {
 }
 
 private struct TranscriptionModelSettingsView: View {
+    @AppStorage(TranscriptionRequestTimeout.userDefaultsKey) private var transcriptionTimeoutSeconds = TranscriptionRequestTimeout.defaultSeconds
+
     var body: some View {
         Form {
             FillerWordsSettingsSection()
+
+            Section {
+                Stepper(
+                    value: $transcriptionTimeoutSeconds,
+                    in: TranscriptionRequestTimeout.minimumSeconds...TranscriptionRequestTimeout.maximumSeconds,
+                    step: 30
+                ) {
+                    LabeledContent("Timeout duration") {
+                        Text(formatDuration(transcriptionTimeoutSeconds))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                HStack(spacing: 4) {
+                    Text("Cloud Request Timeout")
+                    InfoTip("Set how long VoiceInk waits for cloud transcription providers to respond before reporting a timeout.")
+                }
+            }
 
             AdvancedModelSettingsSection()
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            transcriptionTimeoutSeconds = TranscriptionRequestTimeout.sanitize(transcriptionTimeoutSeconds)
+        }
+        .onChange(of: transcriptionTimeoutSeconds) { _, newValue in
+            let sanitized = TranscriptionRequestTimeout.sanitize(newValue)
+            if sanitized != newValue {
+                transcriptionTimeoutSeconds = sanitized
+            }
+        }
+    }
+
+    private func formatDuration(_ seconds: Int) -> String {
+        if seconds < 60 {
+            return String(format: String(localized: "%d seconds"), seconds)
+        }
+
+        let minutes = seconds / 60
+        let remainder = seconds % 60
+        if remainder == 0 {
+            return String(format: String(localized: "%d minutes"), minutes)
+        }
+        return String(format: String(localized: "%d min %d sec"), minutes, remainder)
     }
 }
 

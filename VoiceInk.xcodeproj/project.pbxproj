@@ -285,7 +285,7 @@
 				E1ECEC142E44590200DFFBA8 /* XCRemoteSwiftPackageReference "Zip" */,
 				E1342C1D2EB4844800CED8A2 /* XCRemoteSwiftPackageReference "swift-atomics" */,
 				E1DD20DC2FA20AD90020AF3B /* XCRemoteSwiftPackageReference "FluidAudio" */,
-				E1DD20DF2FA20AEE0020AF3B /* XCRemoteSwiftPackageReference "LLMkit" */,
+				E1DD20DF2FA20AEE0020AF3B /* XCLocalSwiftPackageReference "LLMkit" */,
 				E1F511022FA3B47000F00001 /* XCRemoteSwiftPackageReference "SelectedTextKit" */,
 				E13461EB2FD1CCCD005B6A81 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 			);
@@ -716,13 +716,9 @@
 				kind = branch;
 			};
 		};
-		E1DD20DF2FA20AEE0020AF3B /* XCRemoteSwiftPackageReference "LLMkit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Beingpax/LLMkit.git";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
+		E1DD20DF2FA20AEE0020AF3B /* XCLocalSwiftPackageReference "LLMkit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = LocalPackages/LLMkit;
 		};
 		E1ECEC142E44590200DFFBA8 /* XCRemoteSwiftPackageReference "Zip" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -780,7 +776,7 @@
 		};
 		E1DD20E02FA20AEE0020AF3B /* LLMkit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E1DD20DF2FA20AEE0020AF3B /* XCRemoteSwiftPackageReference "LLMkit" */;
+			package = E1DD20DF2FA20AEE0020AF3B /* XCLocalSwiftPackageReference "LLMkit" */;
 			productName = LLMkit;
 		};
 		E1F511032FA3B47000F00001 /* SelectedTextKit */ = {

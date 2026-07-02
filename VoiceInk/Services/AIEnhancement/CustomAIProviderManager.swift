@@ -104,11 +104,14 @@ final class CustomAIProviderManager: ObservableObject {
         }
 
         let previousModelName = providers[index].modelName
-        providers[index] = normalizedProvider
-        saveProviders()
-
         let selectedModelName = defaults.string(forKey: "customProviderModel")
-        if selectedModelName == previousModelName || selectedModelName == normalizedProvider.modelName {
+        let shouldApplyRuntimeConfiguration = selectedModelName == previousModelName ||
+            selectedModelName == normalizedProvider.modelName
+
+        providers[index] = normalizedProvider
+        saveProviders(notifySettingsChange: !shouldApplyRuntimeConfiguration)
+
+        if shouldApplyRuntimeConfiguration {
             applyRuntimeConfiguration(normalizedProvider)
         }
 
@@ -194,11 +197,13 @@ final class CustomAIProviderManager: ObservableObject {
         }
     }
 
-    private func saveProviders() {
+    private func saveProviders(notifySettingsChange: Bool = true) {
         do {
             let data = try JSONEncoder().encode(providers)
             defaults.set(data, forKey: providersKey)
-            NotificationCenter.default.post(name: .AppSettingsDidChange, object: nil)
+            if notifySettingsChange {
+                NotificationCenter.default.post(name: .AppSettingsDidChange, object: nil)
+            }
         } catch {
             logger.error("Failed to encode custom AI providers: \(error, privacy: .public)")
         }

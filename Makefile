@@ -3,6 +3,9 @@ DEPS_DIR := $(HOME)/VoiceInk-Dependencies
 WHISPER_CPP_DIR := $(DEPS_DIR)/whisper.cpp
 FRAMEWORK_PATH := $(WHISPER_CPP_DIR)/build-apple/whisper.xcframework
 LOCAL_DERIVED_DATA := $(CURDIR)/.local-build
+LOCAL_ARCH := $(shell if [ "$$(/usr/sbin/sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ]; then echo arm64; else /usr/bin/uname -m; fi)
+LOCAL_CODE_SIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(.*\)".*/\1/p' | head -1)
+LOCAL_EFFECTIVE_CODE_SIGN_IDENTITY := $(if $(strip $(LOCAL_CODE_SIGN_IDENTITY)),$(LOCAL_CODE_SIGN_IDENTITY),-)
 
 .PHONY: all clean whisper setup build local check healthcheck help dev run
 
@@ -46,17 +49,24 @@ build: setup
 
 # Build for local use without Apple Developer certificate
 local: check setup
-	@echo "Building VoiceInk for local use (no Apple Developer certificate required)..."
+	@echo "Building VoiceInk for local use..."
+	@if [ "$(LOCAL_EFFECTIVE_CODE_SIGN_IDENTITY)" = "-" ]; then \
+		echo "Using ad-hoc signing. Privacy permissions can reset after rebuilds."; \
+	else \
+		echo "Using code signing identity: $(LOCAL_EFFECTIVE_CODE_SIGN_IDENTITY)"; \
+	fi
 	@rm -rf "$(LOCAL_DERIVED_DATA)"
 	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug \
 		-derivedDataPath "$(LOCAL_DERIVED_DATA)" \
 		-xcconfig LocalBuild.xcconfig \
-		CODE_SIGN_IDENTITY="-" \
+		CODE_SIGN_IDENTITY="$(LOCAL_EFFECTIVE_CODE_SIGN_IDENTITY)" \
 		CODE_SIGNING_REQUIRED=NO \
 		CODE_SIGNING_ALLOWED=YES \
 		DEVELOPMENT_TEAM="" \
 		CODE_SIGN_ENTITLEMENTS="$(CURDIR)/VoiceInk/VoiceInk.local.entitlements" \
-		SWIFT_ACTIVE_COMPILATION_CONDITIONS='$$(inherited) LOCAL_BUILD' \
+		SWIFT_ACTIVE_COMPILATION_CONDITIONS='DEBUG LOCAL_BUILD' \
+		ONLY_ACTIVE_ARCH=YES \
+		ARCHS="$(LOCAL_ARCH)" \
 		build
 	@APP_PATH="$(LOCAL_DERIVED_DATA)/Build/Products/Debug/VoiceInk.app" && \
 	if [ -d "$$APP_PATH" ]; then \
@@ -71,6 +81,9 @@ local: check setup
 		echo "Limitations of local builds:"; \
 		echo "  - No iCloud dictionary sync"; \
 		echo "  - No automatic updates (pull new code and rebuild to update)"; \
+		if [ "$(LOCAL_EFFECTIVE_CODE_SIGN_IDENTITY)" = "-" ]; then \
+			echo "  - Privacy permissions may need to be re-granted after rebuilds unless you set LOCAL_CODE_SIGN_IDENTITY"; \
+		fi; \
 	else \
 		echo "Error: Could not find built VoiceInk.app at $$APP_PATH"; \
 		exit 1; \
@@ -107,6 +120,7 @@ help:
 	@echo "  setup              Copy whisper XCFramework to VoiceInk project"
 	@echo "  build              Build the VoiceInk Xcode project"
 	@echo "  local              Build for local use (no Apple Developer certificate needed)"
+	@echo "                     Optional: LOCAL_CODE_SIGN_IDENTITY='Name' make local"
 	@echo "  run                Launch the built VoiceInk app"
 	@echo "  dev                Build and run the app (for development)"
 	@echo "  all                Run full build process (default)"

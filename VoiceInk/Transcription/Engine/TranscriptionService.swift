@@ -20,6 +20,26 @@ struct TranscriptionRequestContext {
     }
 }
 
+enum TranscriptionRequestTimeout {
+    static let userDefaultsKey = "TranscriptionTimeoutSeconds"
+    static let defaultSeconds = 300
+    static let minimumSeconds = 30
+    static let maximumSeconds = 1_200
+
+    static func seconds(in defaults: UserDefaults = .standard) -> Int {
+        sanitize(defaults.integer(forKey: userDefaultsKey))
+    }
+
+    static func interval(in defaults: UserDefaults = .standard) -> TimeInterval {
+        TimeInterval(seconds(in: defaults))
+    }
+
+    static func sanitize(_ seconds: Int) -> Int {
+        guard seconds > 0 else { return defaultSeconds }
+        return min(max(seconds, minimumSeconds), maximumSeconds)
+    }
+}
+
 /// A protocol defining the interface for a transcription service.
 /// This allows for a unified way to handle both local and cloud-based transcription models.
 protocol TranscriptionService {

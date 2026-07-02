@@ -261,6 +261,10 @@ class AIService: ObservableObject {
 
     func selectedModel(for provider: AIProvider) -> String {
         if let selectedModel = selectedModels[provider], !selectedModel.isEmpty {
+            if provider == .custom,
+               !availableModels(for: provider).contains(selectedModel) {
+                return provider.defaultModel
+            }
             return selectedModel
         }
         return provider.defaultModel
@@ -322,9 +326,7 @@ class AIService: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.reloadSelectedProviderConfiguration()
-            }
+            self?.reloadSelectedProviderConfiguration()
         }
     }
 
@@ -341,8 +343,12 @@ class AIService: ObservableObject {
         }
 
         let selectedModelKey = "\(selectedProvider.rawValue)SelectedModel"
-        if let savedModel = userDefaults.string(forKey: selectedModelKey), !savedModel.isEmpty {
+        if let savedModel = userDefaults.string(forKey: selectedModelKey),
+           !savedModel.isEmpty,
+           selectedProvider != .custom || availableModels(for: selectedProvider).contains(savedModel) {
             selectedModels[selectedProvider] = savedModel
+        } else {
+            selectedModels.removeValue(forKey: selectedProvider)
         }
 
         if selectedProvider.requiresAPIKey {

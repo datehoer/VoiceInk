@@ -21,8 +21,8 @@ struct CopyIconButton: View {
                 )
         }
         .buttonStyle(.plain)
-        .help(accessibilityLabel)
-        .accessibilityLabel(accessibilityLabel)
+        .help(String(localized: accessibilityLabel))
+        .accessibilityLabel(String(localized: accessibilityLabel))
     }
 
     private func copy() {

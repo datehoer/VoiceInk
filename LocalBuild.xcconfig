@@ -1,8 +1,9 @@
 // LocalBuild.xcconfig
-// Build configuration for local/unsigned builds (no Apple Developer certificate required).
+// Build configuration for local builds (no Apple Developer certificate required).
 // Used by `make local` — does NOT affect Debug or Release configurations.
 
-// Ad-hoc signing (works without a developer account)
+// `make local` overrides this with LOCAL_CODE_SIGN_IDENTITY when available.
+// The default ad-hoc fallback works without a developer account.
 CODE_SIGN_IDENTITY = -
 CODE_SIGN_STYLE = Manual
 DEVELOPMENT_TEAM =
@@ -11,5 +12,6 @@ PROVISIONING_PROFILE_SPECIFIER =
 // Entitlements are set via absolute path in the Makefile command line
 // (relative paths break SPM package targets that resolve from their own source root)
 
-// Add LOCAL_BUILD compilation flag so Swift code can use #if LOCAL_BUILD
-SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) LOCAL_BUILD
+// Keep local Xcode 16.x builds off macOS 26 SDK-only SpeechAnalyzer APIs.
+// Do not inherit ENABLE_NATIVE_SPEECH_ANALYZER from the project build settings.
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG LOCAL_BUILD
