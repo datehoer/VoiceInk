@@ -139,7 +139,7 @@ struct ModelManagementView: View {
         }
         .sheet(item: $activeCustomEditor) { route in
             customEditorDialogContent(for: route)
-                .frame(width: 560, height: 680)
+                .frame(width: CustomModelEditorMetrics.modalWidth, height: CustomModelEditorMetrics.modalHeight)
         }
         .alert(isPresented: $isShowingDeleteAlert) {
             Alert(

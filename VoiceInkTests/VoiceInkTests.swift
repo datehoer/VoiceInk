@@ -317,6 +317,17 @@ struct VoiceInkTests {
         #expect(CustomModelRowAction.delete.isDestructive == true)
     }
 
+    @Test func customModelEditorUsesModernModalLayoutMetrics() {
+        #expect(CustomModelEditorMetrics.modalWidth == 600)
+        #expect(CustomModelEditorMetrics.modalHeight == 720)
+        #expect(CustomModelEditorMetrics.labelWidth == 120)
+        #expect(CustomModelEditorMetrics.controlWidth == 416)
+        #expect(CustomModelEditorMetrics.bodyHorizontalPadding == 24)
+        #expect(CustomModelEditorMetrics.sectionSpacing == 20)
+        #expect(CustomModelEditorMetrics.controlCornerRadius == 8)
+        #expect(CustomModelEditorMetrics.outerCornerRadius == 12)
+    }
+
     @Test func customEnhancementJSONTemplateReplacesChatPlaceholders() throws {
         let body = try CustomEnhancementRequestTemplateRenderer.makeRequestBody(
             modelName: "models/gemini-3.5-flash",

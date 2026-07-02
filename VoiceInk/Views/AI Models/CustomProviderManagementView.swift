@@ -215,9 +215,9 @@ struct CustomTranscriptionModelEditorPanel: View {
             editorHeader(title: isEditing ? "Edit Custom Transcription Model" : "Add Custom Transcription Model")
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: CustomModelEditorMetrics.sectionSpacing) {
                     CustomModelEditorSection(title: "Details") {
-                        VStack(spacing: 10) {
+                        VStack(spacing: CustomModelEditorMetrics.rowSpacing) {
                             CustomModelTextField(label: "Display Name", placeholder: String(localized: "My Custom Model"), text: $displayName)
                             CustomModelRequestModeRow(selection: $requestMode)
                             CustomModelTextField(label: "API Endpoint", placeholder: requestMode.defaultEndpoint, text: $apiEndpoint)
@@ -253,19 +253,7 @@ struct CustomTranscriptionModelEditorPanel: View {
                                     }
                                 )
 
-                                TextEditor(text: $customBodyTemplate)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .scrollContentBackground(.hidden)
-                                    .frame(minHeight: 220)
-                                    .padding(8)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(AppTheme.Surface.control)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .stroke(AppTheme.Border.control.opacity(0.45), lineWidth: 1)
-                                            )
-                                    )
+                                CustomModelCodeEditor(text: $customBodyTemplate)
                             }
                         }
                     }
@@ -278,8 +266,10 @@ struct CustomTranscriptionModelEditorPanel: View {
                         CustomModelErrorBox(messages: validationErrors)
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, CustomModelEditorMetrics.bodyHorizontalPadding)
+                .padding(.vertical, CustomModelEditorMetrics.bodyVerticalPadding)
             }
+            .background(AppTheme.Surface.window)
 
             editorFooter(
                 primaryTitle: isSaving ? "Saving" : isEditing ? "Save Changes" : "Add Model",
@@ -294,6 +284,8 @@ struct CustomTranscriptionModelEditorPanel: View {
         .onChange(of: requestMode) { _, newMode in
             applyRequestModeDefaults(newMode)
         }
+        .background(AppTheme.Surface.window)
+        .clipShape(RoundedRectangle(cornerRadius: CustomModelEditorMetrics.outerCornerRadius, style: .continuous))
     }
 
     private var canSave: Bool {
@@ -542,9 +534,9 @@ struct CustomEnhancementModelEditorPanel: View {
             )
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: CustomModelEditorMetrics.sectionSpacing) {
                     CustomModelEditorSection(title: "Details") {
-                        VStack(spacing: 10) {
+                        VStack(spacing: CustomModelEditorMetrics.rowSpacing) {
                             CustomModelTextField(label: "Display Name", placeholder: String(localized: "My Enhancement Model"), text: $displayName)
                             CustomEnhancementRequestModeRow(selection: $requestMode)
                             CustomModelTextField(label: "Base URL", placeholder: "https://api.openai.com/v1/chat/completions", text: $baseURL)
@@ -580,19 +572,7 @@ struct CustomEnhancementModelEditorPanel: View {
                                     }
                                 )
 
-                                TextEditor(text: $customBodyTemplate)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .scrollContentBackground(.hidden)
-                                    .frame(minHeight: 220)
-                                    .padding(8)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(AppTheme.Surface.control)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .stroke(AppTheme.Border.control.opacity(0.45), lineWidth: 1)
-                                            )
-                                    )
+                                CustomModelCodeEditor(text: $customBodyTemplate)
                             }
                         }
                     }
@@ -605,8 +585,10 @@ struct CustomEnhancementModelEditorPanel: View {
                         CustomModelErrorBox(messages: [errorMessage])
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, CustomModelEditorMetrics.bodyHorizontalPadding)
+                .padding(.vertical, CustomModelEditorMetrics.bodyVerticalPadding)
             }
+            .background(AppTheme.Surface.window)
 
             CustomModelEditorFooter(
                 primaryTitle: primaryButtonTitle,
@@ -624,6 +606,8 @@ struct CustomEnhancementModelEditorPanel: View {
                 customBodyTemplate = CustomEnhancementBodyTemplatePresets.chatCompletionsJSON
             }
         }
+        .background(AppTheme.Surface.window)
+        .clipShape(RoundedRectangle(cornerRadius: CustomModelEditorMetrics.outerCornerRadius, style: .continuous))
     }
 
     private var canSave: Bool {
@@ -839,9 +823,22 @@ struct CustomEnhancementModelEditorPanel: View {
     }
 }
 
-private enum CustomModelEditorMetrics {
-    static let labelWidth: CGFloat = 104
-    static let fieldMaxWidth: CGFloat = 236
+enum CustomModelEditorMetrics {
+    static let modalWidth: CGFloat = 600
+    static let modalHeight: CGFloat = 720
+    static let bodyHorizontalPadding: CGFloat = 24
+    static let bodyVerticalPadding: CGFloat = 20
+    static let labelWidth: CGFloat = 120
+    static let formColumnSpacing: CGFloat = 16
+    static let controlWidth: CGFloat = modalWidth - (bodyHorizontalPadding * 2) - labelWidth - formColumnSpacing
+    static let fieldMaxWidth: CGFloat = controlWidth
+    static let sectionSpacing: CGFloat = 20
+    static let rowSpacing: CGFloat = 14
+    static let controlHeight: CGFloat = 32
+    static let controlCornerRadius: CGFloat = 8
+    static let smallControlCornerRadius: CGFloat = 6
+    static let outerCornerRadius: CGFloat = 12
+    static let codeEditorMinHeight: CGFloat = 230
 }
 
 private struct CustomModelEditorSection<Content: View>: View {
@@ -854,17 +851,78 @@ private struct CustomModelEditorSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppTheme.Text.secondary)
+                .textCase(.uppercase)
+                .tracking(0.4)
 
             VStack(spacing: 0) {
                 content()
             }
-            .padding(12)
-            .background(ProviderSurface(cornerRadius: 10))
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CustomModelFormRow<Content: View>: View {
+    let label: LocalizedStringKey
+    var alignment: VerticalAlignment = .center
+    var labelTopPadding: CGFloat = 0
+    let content: () -> Content
+
+    init(
+        label: LocalizedStringKey,
+        alignment: VerticalAlignment = .center,
+        labelTopPadding: CGFloat = 0,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.label = label
+        self.alignment = alignment
+        self.labelTopPadding = labelTopPadding
+        self.content = content
+    }
+
+    var body: some View {
+        HStack(alignment: alignment, spacing: CustomModelEditorMetrics.formColumnSpacing) {
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(AppTheme.Text.primary)
+                .lineLimit(1)
+                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
+                .padding(.top, labelTopPadding)
+
+            content()
+                .frame(width: CustomModelEditorMetrics.controlWidth, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CustomModelControlBackground: View {
+    var isActive: Bool = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: CustomModelEditorMetrics.controlCornerRadius, style: .continuous)
+            .fill(AppTheme.Surface.control.opacity(0.78))
+            .overlay(
+                RoundedRectangle(cornerRadius: CustomModelEditorMetrics.controlCornerRadius, style: .continuous)
+                    .stroke(isActive ? AppTheme.Accent.primary : AppTheme.Border.control.opacity(0.55), lineWidth: 1)
+            )
+    }
+}
+
+private struct CustomModelIconControl: View {
+    let systemName: String
+    var isDestructive = false
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(isDestructive ? AppTheme.Status.error : AppTheme.Text.secondary)
+            .frame(width: 24, height: 24)
+            .contentShape(Rectangle())
     }
 }
 
@@ -875,13 +933,7 @@ private struct CustomModelTextField: View {
     var isSecure = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
-
+        CustomModelFormRow(label: label) {
             Group {
                 if isSecure {
                     SecureField(placeholder, text: $text)
@@ -889,11 +941,12 @@ private struct CustomModelTextField: View {
                     TextField("", text: $text, prompt: Text(verbatim: placeholder))
                 }
             }
-            .textFieldStyle(.roundedBorder)
-            .font(.system(size: 12))
-            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
+            .textFieldStyle(.plain)
+            .font(.system(size: 13))
+            .padding(.horizontal, 10)
+            .frame(height: CustomModelEditorMetrics.controlHeight)
+            .background(CustomModelControlBackground())
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -903,41 +956,27 @@ private struct CustomModelPromptEditorRow: View {
     @Binding var text: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
-                .padding(.top, 7)
-
+        CustomModelFormRow(label: label, alignment: .top, labelTopPadding: 8) {
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(placeholder)
-                        .font(.system(size: 12))
+                        .font(.system(size: 13))
                         .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 9)
                         .allowsHitTesting(false)
                 }
 
                 TextEditor(text: $text)
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .scrollContentBackground(.hidden)
-                    .padding(.horizontal, 2)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 5)
             }
-            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, minHeight: 84)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(AppTheme.Surface.control)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(AppTheme.Border.control.opacity(0.45), lineWidth: 1)
-                    )
-            )
+            .frame(width: CustomModelEditorMetrics.controlWidth)
+            .frame(minHeight: 92)
+            .background(CustomModelControlBackground())
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -945,23 +984,13 @@ private struct CustomModelRequestModeRow: View {
     @Binding var selection: CustomTranscriptionRequestMode
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text("Request")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
-
-            Picker("", selection: $selection) {
-                ForEach(CustomTranscriptionRequestMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
+        CustomModelFormRow(label: "Request") {
+            CustomModelSegmentedControl(
+                selection: $selection,
+                options: Array(CustomTranscriptionRequestMode.allCases),
+                title: { $0.title }
+            )
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -969,23 +998,49 @@ private struct CustomEnhancementRequestModeRow: View {
     @Binding var selection: CustomEnhancementRequestMode
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text("Request")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
-
-            Picker("", selection: $selection) {
-                ForEach(CustomEnhancementRequestMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
+        CustomModelFormRow(label: "Request") {
+            CustomModelSegmentedControl(
+                selection: $selection,
+                options: Array(CustomEnhancementRequestMode.allCases),
+                title: { $0.title }
+            )
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CustomModelSegmentedControl<Option: Hashable>: View {
+    @Binding var selection: Option
+    let options: [Option]
+    let title: (Option) -> String
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(options, id: \.self) { option in
+                Button {
+                    selection = option
+                } label: {
+                    Text(title(option))
+                        .font(.system(size: 12, weight: selection == option ? .semibold : .medium))
+                        .foregroundStyle(selection == option ? AppTheme.Text.primary : AppTheme.Text.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 26)
+                        .padding(.horizontal, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: CustomModelEditorMetrics.smallControlCornerRadius, style: .continuous)
+                                .fill(selection == option ? AppTheme.Surface.window : Color.clear)
+                                .shadow(color: selection == option ? Color.black.opacity(0.10) : Color.clear, radius: 2, y: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .frame(width: CustomModelEditorMetrics.controlWidth)
+        .background(
+            RoundedRectangle(cornerRadius: CustomModelEditorMetrics.controlCornerRadius, style: .continuous)
+                .fill(AppTheme.Surface.subtle)
+        )
     }
 }
 
@@ -996,13 +1051,7 @@ private struct CustomModelAPIKeyField: View {
     @Binding var isRevealed: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
-
+        CustomModelFormRow(label: label) {
             HStack(spacing: 6) {
                 Group {
                     if isRevealed {
@@ -1011,22 +1060,22 @@ private struct CustomModelAPIKeyField: View {
                         SecureField(placeholder, text: $text)
                     }
                 }
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12))
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
 
                 Button {
                     isRevealed.toggle()
                 } label: {
-                    Image(systemName: isRevealed ? "eye.slash" : "eye")
-                        .font(.system(size: 12, weight: .medium))
+                    CustomModelIconControl(systemName: isRevealed ? "eye.slash" : "eye")
                 }
-                .buttonStyle(.borderless)
-                .frame(width: 24, height: 24)
+                .buttonStyle(.plain)
                 .help(isRevealed ? "Hide API key" : "Show API key")
             }
-            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
+            .padding(.leading, 10)
+            .padding(.trailing, 6)
+            .frame(height: CustomModelEditorMetrics.controlHeight)
+            .background(CustomModelControlBackground())
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -1038,17 +1087,11 @@ private struct CustomModelModelPickerRow: View {
     let fetchAction: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text("Model Name")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
-
+        CustomModelFormRow(label: "Model Name") {
             HStack(spacing: 6) {
                 TextField("", text: $text, prompt: Text(verbatim: placeholder))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
 
                 Menu {
                     if models.isEmpty {
@@ -1061,11 +1104,10 @@ private struct CustomModelModelPickerRow: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "list.bullet")
-                        .font(.system(size: 12, weight: .medium))
+                    CustomModelIconControl(systemName: "list.bullet")
                 }
-                .buttonStyle(.borderless)
-                .frame(width: 24, height: 24)
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .disabled(models.isEmpty)
                 .help("Select fetched model")
 
@@ -1075,18 +1117,73 @@ private struct CustomModelModelPickerRow: View {
                             .controlSize(.small)
                             .frame(width: 14, height: 14)
                     } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 12, weight: .medium))
+                        CustomModelIconControl(systemName: "arrow.clockwise")
                     }
                 }
-                .buttonStyle(.borderless)
-                .frame(width: 24, height: 24)
+                .buttonStyle(.plain)
                 .disabled(isFetching)
                 .help("Fetch models")
             }
-            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
+            .padding(.leading, 10)
+            .padding(.trailing, 6)
+            .frame(height: CustomModelEditorMetrics.controlHeight)
+            .background(CustomModelControlBackground())
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CustomModelCodeEditor: View {
+    @Binding var text: String
+
+    var body: some View {
+        TextEditor(text: $text)
+            .font(.system(size: 12, design: .monospaced))
+            .scrollContentBackground(.hidden)
+            .padding(10)
+            .frame(width: CustomModelEditorMetrics.controlWidth)
+            .frame(minHeight: CustomModelEditorMetrics.codeEditorMinHeight)
+            .background(
+                RoundedRectangle(cornerRadius: CustomModelEditorMetrics.controlCornerRadius, style: .continuous)
+                    .fill(AppTheme.Surface.subtle.opacity(0.85))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CustomModelEditorMetrics.controlCornerRadius, style: .continuous)
+                            .stroke(AppTheme.Border.control.opacity(0.55), lineWidth: 1)
+                    )
+            )
+    }
+}
+
+private struct CustomModelToolbarMenu<Content: View>: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+    let content: () -> Content
+
+    init(_ title: LocalizedStringKey, systemImage: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
+        self.content = content
+    }
+
+    var body: some View {
+        Menu {
+            content()
+        } label: {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(AppTheme.Text.primary)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: CustomModelEditorMetrics.smallControlCornerRadius, style: .continuous)
+                        .fill(AppTheme.Surface.control)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: CustomModelEditorMetrics.smallControlCornerRadius, style: .continuous)
+                                .stroke(AppTheme.Border.control.opacity(0.55), lineWidth: 1)
+                        )
+                )
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
     }
 }
 
@@ -1097,12 +1194,12 @@ private struct CustomModelTemplateToolbar: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Menu("Preset") {
+            CustomModelToolbarMenu("Preset", systemImage: "slider.horizontal.3") {
                 Button("Chat Audio JSON", action: applyChatPreset)
                 Button("Responses Input Audio JSON", action: applyInputPreset)
             }
 
-            Menu("Insert") {
+            CustomModelToolbarMenu("Insert", systemImage: "text.cursor") {
                 ForEach(CustomTranscriptionBodyTemplatePresets.placeholderTokens, id: \.self) { placeholder in
                     Button(placeholder) {
                         insertPlaceholder(placeholder)
@@ -1123,12 +1220,12 @@ private struct CustomEnhancementTemplateToolbar: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Menu("Preset") {
+            CustomModelToolbarMenu("Preset", systemImage: "slider.horizontal.3") {
                 Button("Chat Completions JSON", action: applyChatPreset)
                 Button("System + User JSON", action: applyExplicitPreset)
             }
 
-            Menu("Insert") {
+            CustomModelToolbarMenu("Insert", systemImage: "text.cursor") {
                 ForEach(CustomEnhancementBodyTemplatePresets.placeholderTokens, id: \.self) { placeholder in
                     Button(placeholder) {
                         insertPlaceholder(placeholder)
@@ -1147,18 +1244,10 @@ private struct CustomModelToggleRow: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
-                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
-
+        CustomModelFormRow(label: title) {
             Toggle("", isOn: $isOn)
                 .labelsHidden()
-
-            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -1175,8 +1264,16 @@ private struct CustomModelErrorBox: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(ProviderSurface(cornerRadius: 10))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: CustomModelEditorMetrics.controlCornerRadius, style: .continuous)
+                .fill(AppTheme.Status.error.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: CustomModelEditorMetrics.controlCornerRadius, style: .continuous)
+                        .stroke(AppTheme.Status.error.opacity(0.22), lineWidth: 1)
+                )
+        )
     }
 }
 
@@ -1187,26 +1284,29 @@ private struct CustomModelEditorHeader: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(title)
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(AppTheme.Text.primary)
 
             Spacer()
 
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .padding(6)
-                    .background(AppTheme.Surface.card)
-                    .clipShape(Circle())
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AppTheme.Text.secondary)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Circle()
+                            .fill(AppTheme.Surface.control)
+                            .overlay(Circle().stroke(AppTheme.Border.control.opacity(0.45), lineWidth: 1))
+                    )
             }
             .buttonStyle(.plain)
             .help("Close")
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, CustomModelEditorMetrics.bodyHorizontalPadding)
         .padding(.vertical, 16)
-        .overlay(Divider().opacity(0.5), alignment: .bottom)
+        .background(AppTheme.Surface.window)
+        .overlay(Rectangle().fill(AppTheme.Border.subtle).frame(height: 1), alignment: .bottom)
     }
 }
 
@@ -1218,35 +1318,80 @@ private struct CustomModelEditorFooter: View {
 
     var body: some View {
         HStack {
-            Button("Cancel", action: onCancel)
-                .keyboardShortcut(.cancelAction)
+            Button(action: onCancel) {
+                Text("Cancel")
+            }
+            .buttonStyle(CustomModelSecondaryButtonStyle())
+            .keyboardShortcut(.cancelAction)
 
             Spacer()
 
-            Button(primaryTitle, action: onPrimary)
-                .buttonStyle(.borderedProminent)
-                .disabled(isPrimaryDisabled)
+            Button(action: onPrimary) {
+                Text(primaryTitle)
+            }
+            .buttonStyle(CustomModelPrimaryButtonStyle())
+            .disabled(isPrimaryDisabled)
+            .keyboardShortcut(.defaultAction)
         }
-        .padding(20)
-        .overlay(Divider().opacity(0.5), alignment: .top)
+        .padding(.horizontal, CustomModelEditorMetrics.bodyHorizontalPadding)
+        .padding(.vertical, 16)
+        .background(AppTheme.Surface.window)
+        .overlay(Rectangle().fill(AppTheme.Border.subtle).frame(height: 1), alignment: .top)
+    }
+}
+
+private struct CustomModelSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(isEnabled ? AppTheme.Text.primary : AppTheme.Text.disabled)
+            .padding(.horizontal, 16)
+            .frame(height: 32)
+            .background(
+                RoundedRectangle(cornerRadius: CustomModelEditorMetrics.controlCornerRadius, style: .continuous)
+                    .fill(configuration.isPressed ? AppTheme.Surface.controlActive : AppTheme.Surface.window)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CustomModelEditorMetrics.controlCornerRadius, style: .continuous)
+                            .stroke(AppTheme.Border.control.opacity(0.65), lineWidth: 1)
+                    )
+            )
+    }
+}
+
+private struct CustomModelPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(AppTheme.Action.primaryForeground)
+            .padding(.horizontal, 18)
+            .frame(height: 32)
+            .background(
+                RoundedRectangle(cornerRadius: CustomModelEditorMetrics.controlCornerRadius, style: .continuous)
+                    .fill(primaryFill(isPressed: configuration.isPressed))
+            )
+            .shadow(color: isEnabled ? AppTheme.Accent.shadow : Color.clear, radius: 4, y: 2)
+    }
+
+    private func primaryFill(isPressed: Bool) -> Color {
+        guard isEnabled else { return AppTheme.Action.disabledFill }
+        return isPressed ? AppTheme.Accent.strong : AppTheme.Action.primaryFill
     }
 }
 
 #if DEBUG
-private enum CustomModelsPreviewPanel {
+private enum CustomModelsPreviewPanel: String, Identifiable {
     case transcription
     case enhancement
+
+    var id: String { rawValue }
 }
 
-private struct CustomModelsSidePanelPreview: View {
+private struct CustomModelsModalPreview: View {
     @State private var activePanel: CustomModelsPreviewPanel? = .transcription
-
-    private var isPanelOpen: Binding<Bool> {
-        Binding(
-            get: { activePanel != nil },
-            set: { if !$0 { activePanel = nil } }
-        )
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1288,14 +1433,15 @@ private struct CustomModelsSidePanelPreview: View {
         }
         .frame(width: 920, height: 640)
         .background(AppTheme.Surface.window)
-        .sidePanel(isPresented: isPanelOpen) {
-            panelContent
+        .sheet(item: $activePanel) { panel in
+            panelContent(for: panel)
+                .frame(width: CustomModelEditorMetrics.modalWidth, height: CustomModelEditorMetrics.modalHeight)
         }
     }
 
     @ViewBuilder
-    private var panelContent: some View {
-        switch activePanel {
+    private func panelContent(for panel: CustomModelsPreviewPanel) -> some View {
+        switch panel {
         case .transcription:
             CustomTranscriptionModelEditorPanel(
                 editingModel: Self.sampleTranscriptionModel,
@@ -1310,8 +1456,6 @@ private struct CustomModelsSidePanelPreview: View {
                 onClose: { activePanel = nil },
                 onSave: { activePanel = nil }
             )
-        case nil:
-            EmptyView()
         }
     }
 
@@ -1342,7 +1486,7 @@ private struct CustomModelsSidePanelPreview: View {
     )
 }
 
-#Preview("Custom AI Models - Side Panel") {
-    CustomModelsSidePanelPreview()
+#Preview("Custom AI Models - Modal") {
+    CustomModelsModalPreview()
 }
 #endif
