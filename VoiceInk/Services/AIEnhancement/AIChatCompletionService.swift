@@ -26,15 +26,32 @@ extension AIService {
                   let baseURL = URL(string: customConfiguration.baseURL) else {
                 throw EnhancementError.notConfigured
             }
-            result = try await OpenAILLMClient.chatCompletion(
-                baseURL: baseURL,
-                apiKey: customConfiguration.apiKey,
-                model: customConfiguration.modelName,
-                messages: messages,
-                systemPrompt: systemPrompt,
-                temperature: 0.3,
-                timeout: timeout
-            )
+            if let template = customConfiguration.customBodyTemplate,
+               !template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let body = try CustomEnhancementRequestTemplateRenderer.makeRequestBody(
+                    modelName: customConfiguration.modelName,
+                    messages: messages,
+                    systemPrompt: systemPrompt,
+                    temperature: 0.3,
+                    template: template
+                )
+                result = try await CustomEnhancementRequestExecutor.chatCompletion(
+                    baseURL: baseURL,
+                    apiKey: customConfiguration.apiKey,
+                    body: body,
+                    timeout: timeout
+                )
+            } else {
+                result = try await OpenAILLMClient.chatCompletion(
+                    baseURL: baseURL,
+                    apiKey: customConfiguration.apiKey,
+                    model: customConfiguration.modelName,
+                    messages: messages,
+                    systemPrompt: systemPrompt,
+                    temperature: 0.3,
+                    timeout: timeout
+                )
+            }
         case .ollama:
             result = try await enhanceWithOllama(
                 text: chatPrompt(from: messages),

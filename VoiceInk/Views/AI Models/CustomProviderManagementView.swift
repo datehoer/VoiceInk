@@ -147,7 +147,7 @@ private struct CustomEnhancementModelRow: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 } else {
-                    Text(provider.modelName)
+                    Text(modelSummary)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -169,6 +169,14 @@ private struct CustomEnhancementModelRow: View {
         }
         .padding(14)
         .background(ProviderSurface(cornerRadius: 10))
+    }
+
+    private var modelSummary: String {
+        let modelCount = provider.trimmedModels.count
+        if modelCount > 1 {
+            return "\(provider.modelName) + \(modelCount - 1) more"
+        }
+        return provider.modelName
     }
 }
 
@@ -490,13 +498,22 @@ struct CustomEnhancementModelEditorPanel: View {
     let onClose: () -> Void
     let onSave: () -> Void
 
+    private let modelDiscoveryService = CustomModelDiscoveryService()
+
     @State private var displayName = ""
     @State private var baseURL = ""
     @State private var apiKey = ""
     @State private var modelName = ""
+    @State private var requestMode: CustomEnhancementRequestMode = .chatCompletions
+    @State private var modelDiscoveryEndpoint = ""
+    @State private var customBodyTemplate = CustomEnhancementBodyTemplatePresets.chatCompletionsJSON
     @State private var errorMessage: String?
+    @State private var modelFetchError: String?
+    @State private var fetchedModels: [String] = []
     @State private var isSaving = false
     @State private var isVerifying = false
+    @State private var isFetchingModels = false
+    @State private var isAPIKeyVisible = false
 
     private var isEditing: Bool {
         editingProvider != nil
@@ -514,12 +531,54 @@ struct CustomEnhancementModelEditorPanel: View {
                     CustomModelEditorSection(title: "Details") {
                         VStack(spacing: 10) {
                             CustomModelTextField(label: "Display Name", placeholder: String(localized: "My Enhancement Model"), text: $displayName)
+                            CustomEnhancementRequestModeRow(selection: $requestMode)
                             CustomModelTextField(label: "Base URL", placeholder: "https://api.openai.com/v1/chat/completions", text: $baseURL)
-                            if !isEditing {
-                                CustomModelTextField(label: "API Key", placeholder: String(localized: "Paste API key"), text: $apiKey, isSecure: true)
-                            }
-                            CustomModelTextField(label: "Model Name", placeholder: "gpt-5.5", text: $modelName)
+                            CustomModelAPIKeyField(label: "API Key", placeholder: String(localized: "Paste API key"), text: $apiKey, isRevealed: $isAPIKeyVisible)
+                            CustomModelTextField(label: "Models URL", placeholder: derivedModelsEndpointPlaceholder, text: $modelDiscoveryEndpoint)
+                            CustomModelModelPickerRow(
+                                text: $modelName,
+                                placeholder: "gpt-5.5",
+                                models: fetchedModels,
+                                isFetching: isFetchingModels,
+                                fetchAction: fetchModels
+                            )
                         }
+                    }
+
+                    if requestMode == .customJSON {
+                        CustomModelEditorSection(title: "Body Template") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                CustomEnhancementTemplateToolbar(
+                                    applyChatPreset: {
+                                        customBodyTemplate = CustomEnhancementBodyTemplatePresets.chatCompletionsJSON
+                                    },
+                                    applyExplicitPreset: {
+                                        customBodyTemplate = CustomEnhancementBodyTemplatePresets.explicitSystemUserJSON
+                                    },
+                                    insertPlaceholder: { placeholder in
+                                        customBodyTemplate.append(placeholder)
+                                    }
+                                )
+
+                                TextEditor(text: $customBodyTemplate)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .scrollContentBackground(.hidden)
+                                    .frame(minHeight: 220)
+                                    .padding(8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(AppTheme.Surface.control)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .stroke(AppTheme.Border.control.opacity(0.45), lineWidth: 1)
+                                            )
+                                    )
+                            }
+                        }
+                    }
+
+                    if let modelFetchError {
+                        CustomModelErrorBox(messages: [modelFetchError])
                     }
 
                     if let errorMessage {
@@ -540,31 +599,48 @@ struct CustomEnhancementModelEditorPanel: View {
         .onChange(of: editingProvider?.id) { _, _ in
             loadProvider()
         }
+        .onChange(of: requestMode) { _, newMode in
+            if newMode == .customJSON && customBodyTemplate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                customBodyTemplate = CustomEnhancementBodyTemplatePresets.chatCompletionsJSON
+            }
+        }
     }
 
     private var canSave: Bool {
         !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        (isEditing || !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        (requestMode != .customJSON || !customBodyTemplate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     private func loadProvider() {
         if let editingProvider {
             displayName = editingProvider.name
             baseURL = editingProvider.baseURL
-            apiKey = ""
+            apiKey = APIKeyManager.shared.getCustomAIProviderAPIKey(forProviderId: editingProvider.id) ?? ""
             modelName = editingProvider.modelName
+            requestMode = editingProvider.customBodyTemplate == nil ? .chatCompletions : .customJSON
+            modelDiscoveryEndpoint = editingProvider.modelDiscoveryEndpoint ?? ""
+            customBodyTemplate = editingProvider.customBodyTemplate ?? CustomEnhancementBodyTemplatePresets.chatCompletionsJSON
+            fetchedModels = editingProvider.trimmedModels
         } else {
             displayName = ""
             baseURL = "https://api.openai.com/v1/chat/completions"
             apiKey = ""
             modelName = "gpt-5.5"
+            requestMode = .chatCompletions
+            modelDiscoveryEndpoint = ""
+            customBodyTemplate = CustomEnhancementBodyTemplatePresets.chatCompletionsJSON
+            fetchedModels = []
         }
 
         errorMessage = nil
+        modelFetchError = nil
         isSaving = false
         isVerifying = false
+        isFetchingModels = false
+        isAPIKeyVisible = false
     }
 
     private var primaryButtonTitle: LocalizedStringKey {
@@ -584,6 +660,8 @@ struct CustomEnhancementModelEditorPanel: View {
         let trimmedURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedModelName = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDiscoveryEndpoint = modelDiscoveryEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBodyTemplate = customBodyTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
 
         var validationErrors = manager.validateProvider(
             name: trimmedName,
@@ -592,8 +670,26 @@ struct CustomEnhancementModelEditorPanel: View {
             excluding: editingProvider?.id
         )
 
-        if !isEditing && trimmedKey.isEmpty {
+        if trimmedKey.isEmpty {
             validationErrors.append(String(localized: "API key cannot be empty"))
+        }
+
+        if !trimmedDiscoveryEndpoint.isEmpty && URL(string: trimmedDiscoveryEndpoint)?.host == nil {
+            validationErrors.append(String(localized: "Models URL must be a valid URL"))
+        }
+
+        if requestMode == .customJSON {
+            do {
+                _ = try CustomEnhancementRequestTemplateRenderer.makeRequestBody(
+                    modelName: trimmedModelName,
+                    systemPrompt: "System",
+                    userMessage: "User",
+                    temperature: 0.3,
+                    template: trimmedBodyTemplate
+                )
+            } catch {
+                validationErrors.append(String(localized: "Custom JSON template must be valid JSON"))
+            }
         }
 
         guard validationErrors.isEmpty else {
@@ -607,22 +703,11 @@ struct CustomEnhancementModelEditorPanel: View {
             id: editingProvider?.id ?? UUID(),
             name: trimmedName,
             baseURL: trimmedURL,
-            models: [trimmedModelName],
-            selectedModel: trimmedModelName
+            models: savedModels(selectedModel: trimmedModelName),
+            selectedModel: trimmedModelName,
+            modelDiscoveryEndpoint: trimmedDiscoveryEndpoint.isEmpty ? nil : trimmedDiscoveryEndpoint,
+            customBodyTemplate: requestMode == .customJSON ? trimmedBodyTemplate : nil
         )
-
-        if isEditing {
-            isSaving = true
-            let didSave = manager.updateProvider(provider)
-            isSaving = false
-
-            if didSave {
-                onSave()
-            } else {
-                errorMessage = String(localized: "Failed to save custom enhancement model")
-            }
-            return
-        }
 
         guard let verificationURL = URL(string: trimmedURL) else {
             errorMessage = String(localized: "Base URL must be a valid URL")
@@ -632,10 +717,11 @@ struct CustomEnhancementModelEditorPanel: View {
         isVerifying = true
 
         Task {
-            let result = await OpenAILLMClient.verifyAPIKey(
+            let result = await CustomEnhancementRequestExecutor.verifyAPIKey(
                 baseURL: verificationURL,
                 apiKey: trimmedKey,
-                model: trimmedModelName
+                modelName: trimmedModelName,
+                bodyTemplate: provider.customBodyTemplate
             )
 
             await MainActor.run {
@@ -647,7 +733,12 @@ struct CustomEnhancementModelEditorPanel: View {
                 }
 
                 isSaving = true
-                let didSave = manager.addProvider(provider, apiKey: trimmedKey)
+                let didSave: Bool
+                if isEditing {
+                    didSave = manager.updateProvider(provider, apiKey: trimmedKey)
+                } else {
+                    didSave = manager.addProvider(provider, apiKey: trimmedKey)
+                }
                 isSaving = false
 
                 if didSave {
@@ -657,6 +748,70 @@ struct CustomEnhancementModelEditorPanel: View {
                 }
             }
         }
+    }
+
+    private var derivedModelsEndpointPlaceholder: String {
+        CustomModelDiscoveryEndpointResolver.endpoint(from: baseURL)?.absoluteString ?? "https://api.openai.com/v1/models"
+    }
+
+    private func fetchModels() {
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else {
+            modelFetchError = String(localized: "API key cannot be empty")
+            return
+        }
+
+        let trimmedModelsEndpoint = modelDiscoveryEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let endpointURL: URL?
+        if trimmedModelsEndpoint.isEmpty {
+            endpointURL = CustomModelDiscoveryEndpointResolver.endpoint(from: baseURL)
+        } else {
+            endpointURL = URL(string: trimmedModelsEndpoint)
+        }
+
+        guard let endpointURL, endpointURL.host != nil else {
+            modelFetchError = String(localized: "Models URL must be a valid URL")
+            return
+        }
+
+        isFetchingModels = true
+        modelFetchError = nil
+
+        Task {
+            do {
+                let models = try await modelDiscoveryService.fetchModels(endpoint: endpointURL, apiKey: trimmedKey)
+                await MainActor.run {
+                    fetchedModels = models
+                    if modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let firstModel = models.first {
+                        modelName = firstModel
+                    }
+                    if trimmedModelsEndpoint.isEmpty {
+                        modelDiscoveryEndpoint = endpointURL.absoluteString
+                    }
+                    isFetchingModels = false
+                }
+            } catch {
+                await MainActor.run {
+                    fetchedModels = []
+                    modelFetchError = error.localizedDescription
+                    isFetchingModels = false
+                }
+            }
+        }
+    }
+
+    private func savedModels(selectedModel: String) -> [String] {
+        var models: [String] = []
+
+        func appendUnique(_ value: String) {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !models.contains(trimmed) else { return }
+            models.append(trimmed)
+        }
+
+        fetchedModels.forEach(appendUnique)
+        appendUnique(selectedModel)
+        return models
     }
 }
 
@@ -742,6 +897,30 @@ private struct CustomModelRequestModeRow: View {
     }
 }
 
+private struct CustomEnhancementRequestModeRow: View {
+    @Binding var selection: CustomEnhancementRequestMode
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("Request")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
+
+            Picker("", selection: $selection) {
+                ForEach(CustomEnhancementRequestMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 private struct CustomModelAPIKeyField: View {
     let label: LocalizedStringKey
     let placeholder: String
@@ -785,6 +964,7 @@ private struct CustomModelAPIKeyField: View {
 
 private struct CustomModelModelPickerRow: View {
     @Binding var text: String
+    var placeholder = "gpt-4o-mini-transcribe"
     let models: [String]
     let isFetching: Bool
     let fetchAction: () -> Void
@@ -798,7 +978,7 @@ private struct CustomModelModelPickerRow: View {
                 .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
 
             HStack(spacing: 6) {
-                TextField("", text: $text, prompt: Text(verbatim: "gpt-4o-mini-transcribe"))
+                TextField("", text: $text, prompt: Text(verbatim: placeholder))
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12))
 
@@ -856,6 +1036,32 @@ private struct CustomModelTemplateToolbar: View {
 
             Menu("Insert") {
                 ForEach(CustomTranscriptionBodyTemplatePresets.placeholderTokens, id: \.self) { placeholder in
+                    Button(placeholder) {
+                        insertPlaceholder(placeholder)
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 12))
+    }
+}
+
+private struct CustomEnhancementTemplateToolbar: View {
+    let applyChatPreset: () -> Void
+    let applyExplicitPreset: () -> Void
+    let insertPlaceholder: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Menu("Preset") {
+                Button("Chat Completions JSON", action: applyChatPreset)
+                Button("System + User JSON", action: applyExplicitPreset)
+            }
+
+            Menu("Insert") {
+                ForEach(CustomEnhancementBodyTemplatePresets.placeholderTokens, id: \.self) { placeholder in
                     Button(placeholder) {
                         insertPlaceholder(placeholder)
                     }

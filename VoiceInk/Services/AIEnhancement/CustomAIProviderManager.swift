@@ -7,13 +7,25 @@ struct CustomAIProviderConfig: Identifiable, Codable, Hashable {
     var baseURL: String
     var models: [String]
     var selectedModel: String
+    var modelDiscoveryEndpoint: String?
+    var customBodyTemplate: String?
 
-    init(id: UUID = UUID(), name: String, baseURL: String, models: [String], selectedModel: String) {
+    init(
+        id: UUID = UUID(),
+        name: String,
+        baseURL: String,
+        models: [String],
+        selectedModel: String,
+        modelDiscoveryEndpoint: String? = nil,
+        customBodyTemplate: String? = nil
+    ) {
         self.id = id
         self.name = name
         self.baseURL = baseURL
         self.models = models
         self.selectedModel = selectedModel
+        self.modelDiscoveryEndpoint = modelDiscoveryEndpoint
+        self.customBodyTemplate = customBodyTemplate
     }
 
     var trimmedModels: [String] {
@@ -24,22 +36,59 @@ struct CustomAIProviderConfig: Identifiable, Codable, Hashable {
 
     var modelName: String {
         let trimmedSelectedModel = selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedSelectedModel.isEmpty {
+        if !trimmedSelectedModel.isEmpty,
+           trimmedModels.isEmpty || trimmedModels.contains(trimmedSelectedModel) {
             return trimmedSelectedModel
         }
         return trimmedModels.first ?? ""
     }
 
+    func resolvedModelName(for requestedModelName: String) -> String {
+        let trimmedRequestedModelName = requestedModelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedRequestedModelName.isEmpty, trimmedModels.contains(trimmedRequestedModelName) {
+            return trimmedRequestedModelName
+        }
+        return modelName
+    }
+
     var normalizedForStorage: CustomAIProviderConfig {
-        let resolvedModelName = self.modelName
+        let normalizedModels = Self.normalizedModelList(models: models, selectedModel: selectedModel)
+        let trimmedSelectedModel = selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedModelName = normalizedModels.contains(trimmedSelectedModel) ? trimmedSelectedModel : normalizedModels.first ?? ""
+        let trimmedDiscoveryEndpoint = modelDiscoveryEndpoint?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmedTemplate = customBodyTemplate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
         return CustomAIProviderConfig(
             id: id,
-            name: name,
-            baseURL: baseURL,
-            models: resolvedModelName.isEmpty ? [] : [resolvedModelName],
-            selectedModel: resolvedModelName
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            baseURL: baseURL.trimmingCharacters(in: .whitespacesAndNewlines),
+            models: normalizedModels,
+            selectedModel: resolvedModelName,
+            modelDiscoveryEndpoint: trimmedDiscoveryEndpoint.isEmpty ? nil : trimmedDiscoveryEndpoint,
+            customBodyTemplate: trimmedTemplate.isEmpty ? nil : trimmedTemplate
         )
     }
+
+    private static func normalizedModelList(models: [String], selectedModel: String) -> [String] {
+        var normalized: [String] = []
+
+        func appendUnique(_ value: String) {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !normalized.contains(trimmed) else { return }
+            normalized.append(trimmed)
+        }
+
+        models.forEach(appendUnique)
+        appendUnique(selectedModel)
+        return normalized
+    }
+}
+
+struct CustomAIProviderRequestConfiguration {
+    let baseURL: String
+    let apiKey: String
+    let modelName: String
+    let customBodyTemplate: String?
 }
 
 final class CustomAIProviderManager: ObservableObject {
@@ -58,11 +107,12 @@ final class CustomAIProviderManager: ObservableObject {
 
     var availableModelNames: [String] {
         providers.reduce(into: [String]()) { result, provider in
-            let modelName = provider.modelName
-            guard !modelName.isEmpty,
-                  hasAPIKey(for: provider),
-                  !result.contains(modelName) else { return }
-            result.append(modelName)
+            guard hasAPIKey(for: provider) else { return }
+
+            let modelNames = provider.trimmedModels.isEmpty ? [provider.modelName] : provider.trimmedModels
+            for modelName in modelNames where !modelName.isEmpty && !result.contains(modelName) {
+                result.append(modelName)
+            }
         }
     }
 
@@ -97,22 +147,36 @@ final class CustomAIProviderManager: ObservableObject {
         return true
     }
 
-    func updateProvider(_ provider: CustomAIProviderConfig) -> Bool {
+    func updateProvider(_ provider: CustomAIProviderConfig, apiKey: String? = nil) -> Bool {
         let normalizedProvider = provider.normalizedForStorage
         guard let index = providers.firstIndex(where: { $0.id == normalizedProvider.id }) else {
             return false
         }
 
-        let previousModelName = providers[index].modelName
-        let selectedModelName = defaults.string(forKey: "customProviderModel")
-        let shouldApplyRuntimeConfiguration = selectedModelName == previousModelName ||
-            selectedModelName == normalizedProvider.modelName
+        if let apiKey {
+            let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedKey.isEmpty,
+                  APIKeyManager.shared.saveCustomAIProviderAPIKey(trimmedKey, forProviderId: normalizedProvider.id) else {
+                return false
+            }
+        }
+
+        let previousProvider = providers[index]
+        let selectedModelName = defaults.string(forKey: "customProviderModel")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let wasPreviousProviderSelected = selectedModelName == previousProvider.modelName ||
+            previousProvider.trimmedModels.contains(selectedModelName)
+        let shouldApplyRuntimeConfiguration = wasPreviousProviderSelected ||
+            selectedModelName == normalizedProvider.modelName ||
+            normalizedProvider.trimmedModels.contains(selectedModelName)
+        let runtimeModelName = normalizedProvider.trimmedModels.contains(selectedModelName)
+            ? selectedModelName
+            : normalizedProvider.modelName
 
         providers[index] = normalizedProvider
         saveProviders(notifySettingsChange: !shouldApplyRuntimeConfiguration)
 
         if shouldApplyRuntimeConfiguration {
-            applyRuntimeConfiguration(normalizedProvider)
+            applyRuntimeConfiguration(normalizedProvider, selectedModelName: runtimeModelName)
         }
 
         return true
@@ -122,7 +186,8 @@ final class CustomAIProviderManager: ObservableObject {
         providers.removeAll { $0.id == provider.id }
         APIKeyManager.shared.deleteCustomAIProviderAPIKey(forProviderId: provider.id)
 
-        if defaults.string(forKey: "customProviderModel") == provider.modelName {
+        let selectedModelName = defaults.string(forKey: "customProviderModel")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if selectedModelName == provider.modelName || provider.trimmedModels.contains(selectedModelName) {
             clearRuntimeConfiguration()
         }
 
@@ -133,7 +198,7 @@ final class CustomAIProviderManager: ObservableObject {
     func applyConfiguration(forModel modelName: String) -> Bool {
         guard let provider = provider(forModel: modelName) else { return false }
         guard hasAPIKey(for: provider) else { return false }
-        applyRuntimeConfiguration(provider)
+        applyRuntimeConfiguration(provider, selectedModelName: provider.resolvedModelName(for: modelName))
         return true
     }
 
@@ -146,14 +211,19 @@ final class CustomAIProviderManager: ObservableObject {
         }
     }
 
-    func requestConfiguration(forModel modelName: String) -> (baseURL: String, apiKey: String, modelName: String)? {
+    func requestConfiguration(forModel modelName: String) -> CustomAIProviderRequestConfiguration? {
         guard let provider = provider(forModel: modelName),
               let apiKey = APIKeyManager.shared.getCustomAIProviderAPIKey(forProviderId: provider.id),
               !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
 
-        return (provider.baseURL, apiKey, provider.modelName)
+        return CustomAIProviderRequestConfiguration(
+            baseURL: provider.baseURL,
+            apiKey: apiKey,
+            modelName: provider.resolvedModelName(for: modelName),
+            customBodyTemplate: provider.customBodyTemplate
+        )
     }
 
     func validateProvider(name: String, baseURL: String, model: String, excluding id: UUID? = nil) -> [String] {
@@ -180,7 +250,10 @@ final class CustomAIProviderManager: ObservableObject {
             errors.append(String(localized: "A custom enhancement model with this display name already exists"))
         }
 
-        if providers.contains(where: { $0.modelName.caseInsensitiveCompare(trimmedModel) == .orderedSame && $0.id != id }) {
+        if providers.contains(where: { provider in
+            provider.id != id &&
+                provider.trimmedModels.contains { $0.caseInsensitiveCompare(trimmedModel) == .orderedSame }
+        }) {
             errors.append(String(localized: "A custom enhancement model with this model name already exists"))
         }
 
@@ -241,8 +314,9 @@ final class CustomAIProviderManager: ObservableObject {
         saveProviders()
     }
 
-    private func applyRuntimeConfiguration(_ provider: CustomAIProviderConfig) {
-        let modelName = provider.modelName
+    private func applyRuntimeConfiguration(_ provider: CustomAIProviderConfig, selectedModelName: String? = nil) {
+        let requestedModelName = selectedModelName ?? provider.modelName
+        let modelName = provider.resolvedModelName(for: requestedModelName)
 
         defaults.set(provider.baseURL, forKey: "customProviderBaseURL")
         defaults.set(modelName, forKey: "customProviderModel")

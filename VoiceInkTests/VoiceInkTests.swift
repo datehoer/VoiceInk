@@ -158,6 +158,76 @@ struct VoiceInkTests {
         #expect(chatResponse == "chat text")
     }
 
+    @Test func customEnhancementProviderPreservesFetchedModelsAndTemplateSettings() throws {
+        let providerId = try #require(UUID(uuidString: "8D2D30F5-C24C-4D8D-9E52-8AB4BD6728E2"))
+        let provider = CustomAIProviderConfig(
+            id: providerId,
+            name: "New API",
+            baseURL: "https://api.example.com/v1/chat/completions",
+            models: [" models/gemini-3.5-flash ", "models/gemini-3.5-pro", "models/gemini-3.5-flash", " "],
+            selectedModel: "models/gemini-3.5-pro",
+            modelDiscoveryEndpoint: "https://api.example.com/v1/models",
+            customBodyTemplate: #"{"model":"{{model}}","messages":{{messages_json}}}"#
+        )
+
+        let stored = provider.normalizedForStorage
+
+        #expect(stored.models == ["models/gemini-3.5-flash", "models/gemini-3.5-pro"])
+        #expect(stored.selectedModel == "models/gemini-3.5-pro")
+        #expect(stored.modelDiscoveryEndpoint == "https://api.example.com/v1/models")
+        #expect(stored.customBodyTemplate == #"{"model":"{{model}}","messages":{{messages_json}}}"#)
+    }
+
+    @Test func customEnhancementJSONTemplateReplacesChatPlaceholders() throws {
+        let body = try CustomEnhancementRequestTemplateRenderer.makeRequestBody(
+            modelName: "models/gemini-3.5-flash",
+            systemPrompt: "Use \"clean\" formatting.",
+            userMessage: "hello\nworld",
+            temperature: 0.3,
+            template: """
+            {
+              "model": "{{model}}",
+              "messages": {{messages_json}},
+              "metadata": {
+                "system": "{{system_prompt}}",
+                "user": "{{user_message}}"
+              },
+              "temperature": {{temperature}},
+              "stream": false
+            }
+            """
+        )
+
+        let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(object["model"] as? String == "models/gemini-3.5-flash")
+        #expect(object["temperature"] as? Double == 0.3)
+        #expect(object["stream"] as? Bool == false)
+
+        let metadata = try #require(object["metadata"] as? [String: Any])
+        #expect(metadata["system"] as? String == "Use \"clean\" formatting.")
+        #expect(metadata["user"] as? String == "hello\nworld")
+
+        let messages = try #require(object["messages"] as? [[String: String]])
+        #expect(messages == [
+            ["role": "system", "content": "Use \"clean\" formatting."],
+            ["role": "user", "content": "hello\nworld"]
+        ])
+    }
+
+    @Test func customEnhancementVerificationRejectsInvalidTemplateBeforeNetwork() async throws {
+        let url = try #require(URL(string: "https://api.example.com/v1/chat/completions"))
+
+        let result = await CustomEnhancementRequestExecutor.verifyAPIKey(
+            baseURL: url,
+            apiKey: "sk-test",
+            modelName: "models/gemini-3.5-flash",
+            bodyTemplate: #"{"model":"{{model}""#
+        )
+
+        #expect(result.isValid == false)
+        #expect(result.errorMessage == "Custom JSON template must be valid JSON")
+    }
+
     @Test func cloudTranscriptionTimeoutDefaultsToLongerRequestWindow() throws {
         let defaults = try #require(UserDefaults(suiteName: "VoiceInkTests.timeout.default"))
         defaults.removePersistentDomain(forName: "VoiceInkTests.timeout.default")

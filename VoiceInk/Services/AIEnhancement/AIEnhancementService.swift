@@ -254,15 +254,32 @@ class AIEnhancementService: ObservableObject {
                       let baseURL = URL(string: customConfiguration.baseURL) else {
                     throw EnhancementError.notConfigured
                 }
-                result = try await OpenAILLMClient.chatCompletion(
-                    baseURL: baseURL,
-                    apiKey: customConfiguration.apiKey,
-                    model: customConfiguration.modelName,
-                    messages: [.user(formattedText)],
-                    systemPrompt: systemMessage,
-                    temperature: 0.3,
-                    timeout: baseTimeout
-                )
+                if let template = customConfiguration.customBodyTemplate,
+                   !template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let body = try CustomEnhancementRequestTemplateRenderer.makeRequestBody(
+                        modelName: customConfiguration.modelName,
+                        messages: [.user(formattedText)],
+                        systemPrompt: systemMessage,
+                        temperature: 0.3,
+                        template: template
+                    )
+                    result = try await CustomEnhancementRequestExecutor.chatCompletion(
+                        baseURL: baseURL,
+                        apiKey: customConfiguration.apiKey,
+                        body: body,
+                        timeout: baseTimeout
+                    )
+                } else {
+                    result = try await OpenAILLMClient.chatCompletion(
+                        baseURL: baseURL,
+                        apiKey: customConfiguration.apiKey,
+                        model: customConfiguration.modelName,
+                        messages: [.user(formattedText)],
+                        systemPrompt: systemMessage,
+                        temperature: 0.3,
+                        timeout: baseTimeout
+                    )
+                }
             default:
                 guard let baseURL = URL(string: provider.baseURL) else {
                     throw EnhancementError.customError("\(provider.rawValue) has an invalid API endpoint URL. Please update it in AI settings.")
