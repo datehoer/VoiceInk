@@ -4,10 +4,13 @@ WHISPER_CPP_DIR := $(DEPS_DIR)/whisper.cpp
 FRAMEWORK_PATH := $(WHISPER_CPP_DIR)/build-apple/whisper.xcframework
 LOCAL_DERIVED_DATA := $(CURDIR)/.local-build
 LOCAL_ARCH := $(shell if [ "$$(/usr/sbin/sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ]; then echo arm64; else /usr/bin/uname -m; fi)
-LOCAL_CODE_SIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(.*\)".*/\1/p' | head -1)
+LOCAL_SIGNING_IDENTITY_NAME ?= VoiceInk Local Signing
+LOCAL_PREFERRED_CODE_SIGN_IDENTITY := $(shell security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(.*\)".*/\1/p' | grep -Fx "$(LOCAL_SIGNING_IDENTITY_NAME)" | head -1)
+LOCAL_FIRST_CODE_SIGN_IDENTITY := $(shell security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(.*\)".*/\1/p' | head -1)
+LOCAL_CODE_SIGN_IDENTITY ?= $(if $(strip $(LOCAL_PREFERRED_CODE_SIGN_IDENTITY)),$(LOCAL_PREFERRED_CODE_SIGN_IDENTITY),$(LOCAL_FIRST_CODE_SIGN_IDENTITY))
 LOCAL_EFFECTIVE_CODE_SIGN_IDENTITY := $(if $(strip $(LOCAL_CODE_SIGN_IDENTITY)),$(LOCAL_CODE_SIGN_IDENTITY),-)
 
-.PHONY: all clean whisper setup build local check healthcheck help dev run
+.PHONY: all clean whisper setup build local local-signing-cert check healthcheck help dev run
 
 # Default target
 all: check build
@@ -24,6 +27,11 @@ check:
 	@echo "Prerequisites OK"
 
 healthcheck: check
+
+local-signing-cert:
+	@chmod +x scripts/create-local-signing-certificate.sh
+	@./scripts/create-local-signing-certificate.sh
+	@echo "Local signing identity is ready: $(LOCAL_SIGNING_IDENTITY_NAME)"
 
 # Build process
 whisper:
@@ -74,6 +82,10 @@ local: check setup
 		rm -rf "$$HOME/Downloads/VoiceInk.app"; \
 		ditto "$$APP_PATH" "$$HOME/Downloads/VoiceInk.app"; \
 		xattr -cr "$$HOME/Downloads/VoiceInk.app"; \
+		if [ "$(LOCAL_EFFECTIVE_CODE_SIGN_IDENTITY)" != "-" ]; then \
+			chmod +x scripts/sign-local-app.sh; \
+			./scripts/sign-local-app.sh "$$HOME/Downloads/VoiceInk.app" "$(LOCAL_EFFECTIVE_CODE_SIGN_IDENTITY)" "$(CURDIR)/VoiceInk/VoiceInk.local.entitlements"; \
+		fi; \
 		echo ""; \
 		echo "Build complete! App saved to: ~/Downloads/VoiceInk.app"; \
 		echo "Run with: open ~/Downloads/VoiceInk.app"; \
@@ -121,6 +133,7 @@ help:
 	@echo "  build              Build the VoiceInk Xcode project"
 	@echo "  local              Build for local use (no Apple Developer certificate needed)"
 	@echo "                     Optional: LOCAL_CODE_SIGN_IDENTITY='Name' make local"
+	@echo "  local-signing-cert Create a reusable self-signed local code signing identity"
 	@echo "  run                Launch the built VoiceInk app"
 	@echo "  dev                Build and run the app (for development)"
 	@echo "  all                Run full build process (default)"

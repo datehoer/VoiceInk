@@ -35,6 +35,7 @@ make dev
 - `make setup` - Prepare the whisper framework for linking
 - `make build` - Build the VoiceInk Xcode project
 - `make local` - Build for local use (no Apple Developer certificate needed)
+- `make local-signing-cert` - Create a reusable self-signed local signing identity
 - `make run` - Launch the built VoiceInk app
 - `make dev` - Build and run (ideal for development workflow)
 - `make all` - Complete build process (default)
@@ -65,13 +66,25 @@ make local
 open ~/Downloads/VoiceInk.app
 ```
 
-This builds VoiceInk with ad-hoc signing using a separate build configuration (`LocalBuild.xcconfig`) that requires no Apple Developer account.
+This builds VoiceInk with local signing using a separate build configuration (`LocalBuild.xcconfig`) that requires no Apple Developer account. If a valid code signing identity is available, `make local` signs the copied app bundle with it; otherwise it falls back to ad-hoc signing.
+
+For more stable local privacy permissions, create a reusable self-signed signing identity first:
+
+```bash
+make local-signing-cert
+make local
+open ~/Downloads/VoiceInk.app
+```
+
+This creates a local `VoiceInk Local Signing` certificate in your login keychain and uses it for future local builds. It is only for your own Mac. It is not a Developer ID certificate, is not notarized, and should not be used for public distribution.
 
 ### How It Works
 
 The `make local` command uses:
 - `LocalBuild.xcconfig` to override signing and entitlements settings
 - `VoiceInk.local.entitlements` (stripped-down, no CloudKit/keychain groups)
+- `VoiceInk Local Signing`, when present, for stable local code signing
+- `scripts/sign-local-app.sh` to re-sign the final copied app bundle and verify nested code
 - `LOCAL_BUILD` Swift compilation flag for conditional code paths
 
 Your normal `make all` / `make build` commands are completely unaffected.
@@ -136,4 +149,4 @@ If you encounter any build issues:
 4. Verify all dependencies are properly installed
 5. Make sure whisper.xcframework is properly built and linked
 
-For more help, please check the [issues](https://github.com/Beingpax/VoiceInk/issues) section or create a new issue. 
+For more help, please check the [issues](https://github.com/Beingpax/VoiceInk/issues) section or create a new issue.
