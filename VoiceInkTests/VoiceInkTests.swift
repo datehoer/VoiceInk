@@ -68,21 +68,24 @@ struct VoiceInkTests {
         #expect(TranscriptionRequestTimeout.seconds(in: defaults) == 1_200)
     }
 
-    @Test func dashboardProductivityMetricsCalculateDictationStats() {
-        let metrics = DashboardProductivityMetrics(
-            totals: DashboardMetricTotals(
-                count: 4,
-                words: 1_580,
-                duration: 600
-            )
+    @Test func dashboardInsightsUnlockProgressTracksRemainingDuration() {
+        let lockedProgress = DashboardInsightsUnlockProgress(
+            currentDuration: 12 * 60,
+            requiredDuration: 30 * 60
         )
 
-        #expect(metrics.wordCount == 1_580)
-        #expect(metrics.sessionCount == 4)
-        #expect(metrics.totalDuration == 600)
-        #expect(metrics.averageWordsPerMinute == 158)
-        #expect(abs(metrics.productivityMultiplier - 3.95) < 0.001)
-        #expect(metrics.timeSaved == 1_770)
+        #expect(lockedProgress.isUnlocked == false)
+        #expect(abs(lockedProgress.fraction - 0.4) < 0.001)
+        #expect(lockedProgress.remainingDuration == 18 * 60)
+
+        let unlockedProgress = DashboardInsightsUnlockProgress(
+            currentDuration: 45 * 60,
+            requiredDuration: 30 * 60
+        )
+
+        #expect(unlockedProgress.isUnlocked == true)
+        #expect(unlockedProgress.fraction == 1)
+        #expect(unlockedProgress.remainingDuration == 0)
     }
 
     @Test func transcriptionTimingSummaryCalculatesSingleRecordingStats() {

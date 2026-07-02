@@ -17,6 +17,7 @@ struct DashboardHeroCard: View {
     let actionTitle: LocalizedStringKey
     let actionIcon: String
     let canViewInsights: Bool
+    let unlockProgress: DashboardInsightsUnlockProgress
     let actionHelp: String
     let actionAccessibilityLabel: String
     let onViewInsights: () -> Void
@@ -107,12 +108,80 @@ struct DashboardHeroCard: View {
             }
             .frame(width: 42, height: 42)
 
-            Text("Continue using VoiceInk to unlock stats and insights.")
-                .font(.system(size: 26, weight: .black, design: .rounded))
-                .foregroundStyle(DashboardMomentumBackground.headline)
-                .frame(maxWidth: 540, alignment: .leading)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Unlock stats and insights")
+                    .font(.system(size: 25, weight: .black, design: .rounded))
+                    .foregroundStyle(DashboardMomentumBackground.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Text(unlockProgressCaption)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(DashboardMomentumBackground.subtext)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                DashboardInsightsUnlockProgressBar(progress: unlockProgress)
+                    .frame(maxWidth: 420)
+            }
+            .frame(maxWidth: 540, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var unlockProgressCaption: String {
+        String(
+            localized: "\(Formatters.formattedCompactHoursAndMinutes(unlockProgress.remainingDuration)) remaining to reach \(Formatters.formattedCompactHoursAndMinutes(unlockProgress.requiredDuration))."
+        )
+    }
+}
+
+private struct DashboardInsightsUnlockProgressBar: View {
+    let progress: DashboardInsightsUnlockProgress
+
+    private var completedText: String {
+        Formatters.formattedCompactHoursAndMinutes(progress.completedDuration)
+    }
+
+    private var requiredText: String {
+        Formatters.formattedCompactHoursAndMinutes(progress.requiredDuration)
+    }
+
+    private var percentText: String {
+        "\(Int((progress.fraction * 100).rounded()))%"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule(style: .continuous)
+                        .fill(Color.white.opacity(0.68))
+
+                    Capsule(style: .continuous)
+                        .fill(DashboardMomentumBackground.accent)
+                        .frame(width: progress.fraction > 0 ? max(8, geometry.size.width * progress.fraction) : 0)
+                }
+            }
+            .frame(height: 8)
+
+            HStack(spacing: 8) {
+                Text("\(completedText) / \(requiredText)")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(DashboardMomentumBackground.headline)
+
+                Spacer(minLength: 8)
+
+                Text(percentText)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(DashboardMomentumBackground.subtext)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Insights unlock progress")
+        .accessibilityValue("\(completedText) of \(requiredText), \(percentText)")
     }
 }
 

@@ -125,27 +125,29 @@ struct DashboardMetricTotals: Equatable, Sendable {
     var duration: TimeInterval = 0
 }
 
-struct DashboardProductivityMetrics: Equatable, Sendable {
-    let sessionCount: Int
-    let wordCount: Int
-    let totalDuration: TimeInterval
-    let estimatedTypingTime: TimeInterval
-    let timeSaved: TimeInterval
-    let averageWordsPerMinute: Int
-    let productivityMultiplier: Double
+struct DashboardInsightsUnlockProgress: Equatable, Sendable {
+    let currentDuration: TimeInterval
+    let requiredDuration: TimeInterval
 
-    init(totals: DashboardMetricTotals) {
-        self.sessionCount = totals.count
-        self.wordCount = totals.words
-        self.totalDuration = max(totals.duration, 0)
-        self.estimatedTypingTime = DashboardTimeSaving.estimatedTypingTime(words: totals.words)
-        self.timeSaved = DashboardTimeSaving.timeSaved(words: totals.words, duration: totals.duration)
-        self.averageWordsPerMinute = DashboardTimeSaving.wordsPerMinute(words: totals.words, duration: totals.duration)
-        self.productivityMultiplier = DashboardTimeSaving.productivityMultiplier(words: totals.words, duration: totals.duration)
+    init(currentDuration: TimeInterval, requiredDuration: TimeInterval) {
+        self.currentDuration = max(currentDuration, 0)
+        self.requiredDuration = max(requiredDuration, 1)
     }
 
-    var hasData: Bool {
-        sessionCount > 0 || wordCount > 0 || totalDuration > 0
+    var completedDuration: TimeInterval {
+        min(currentDuration, requiredDuration)
+    }
+
+    var remainingDuration: TimeInterval {
+        max(requiredDuration - currentDuration, 0)
+    }
+
+    var fraction: Double {
+        min(max(currentDuration / requiredDuration, 0), 1)
+    }
+
+    var isUnlocked: Bool {
+        currentDuration >= requiredDuration
     }
 }
 

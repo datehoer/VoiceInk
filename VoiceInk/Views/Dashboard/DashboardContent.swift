@@ -112,10 +112,6 @@ struct DashboardContent: View {
                 heroSection
             }
 
-            nameEditorDismissArea {
-                DashboardProductivityMetricsStrip(metrics: allTimeProductivityMetrics)
-            }
-
             if !isAccessibilityEnabled {
                 nameEditorDismissArea {
                     accessibilityReminder
@@ -189,16 +185,19 @@ struct DashboardContent: View {
         )
     }
 
-    private var allTimeProductivityMetrics: DashboardProductivityMetrics {
-        DashboardProductivityMetrics(totals: statsSummary.total)
-    }
-
     private var canViewInsights: Bool {
-        hasLoadedStatsSnapshot && statsSummary.totalDuration >= Self.insightsUnlockDuration
+        hasLoadedStatsSnapshot && insightsUnlockProgress.isUnlocked
     }
 
     private var shouldShowLockedInsightsState: Bool {
         hasLoadedStatsSnapshot && !canViewInsights
+    }
+
+    private var insightsUnlockProgress: DashboardInsightsUnlockProgress {
+        DashboardInsightsUnlockProgress(
+            currentDuration: statsSummary.totalDuration,
+            requiredDuration: Self.insightsUnlockDuration
+        )
     }
 
     private var canViewPeakHours: Bool {
@@ -224,7 +223,9 @@ struct DashboardContent: View {
             return String(localized: "View dashboard insights")
         }
 
-        return String(localized: "Continue using VoiceInk to unlock these stats.")
+        return String(
+            localized: "Record \(Formatters.formattedCompactHoursAndMinutes(insightsUnlockProgress.remainingDuration)) more to unlock stats and insights."
+        )
     }
 
     private var insightsActionAccessibilityLabel: String {
@@ -416,6 +417,7 @@ struct DashboardContent: View {
             actionTitle: insightsActionTitle,
             actionIcon: insightsActionIcon,
             canViewInsights: canViewInsights,
+            unlockProgress: insightsUnlockProgress,
             actionHelp: insightsActionHelp,
             actionAccessibilityLabel: insightsActionAccessibilityLabel,
             onViewInsights: openInsightsIfAvailable
@@ -706,97 +708,6 @@ private struct DashboardAccessibilityReminder: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppCardBackground(cornerRadius: 16))
-    }
-}
-
-private struct DashboardProductivityMetricsStrip: View {
-    let metrics: DashboardProductivityMetrics
-
-    private let columns = [
-        GridItem(.adaptive(minimum: 148), spacing: 12)
-    ]
-
-    var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-            DashboardProductivityMetricTile(
-                title: "Words dictated",
-                value: metrics.hasData ? Formatters.formattedCompactNumber(metrics.wordCount) : "--",
-                icon: "text.word.spacing",
-                tint: AppTheme.Data.transcript
-            )
-
-            DashboardProductivityMetricTile(
-                title: "Average WPM",
-                value: metrics.hasData ? String(localized: "\(metrics.averageWordsPerMinute) WPM") : "--",
-                icon: "speedometer",
-                tint: AppTheme.Data.audio
-            )
-
-            DashboardProductivityMetricTile(
-                title: "Time saved",
-                value: metrics.hasData ? Formatters.formattedCompactHoursAndMinutes(metrics.timeSaved) : "--",
-                icon: "clock.badge.checkmark",
-                tint: AppTheme.Data.enhancement
-            )
-
-            DashboardProductivityMetricTile(
-                title: "Dictation time",
-                value: metrics.hasData ? Formatters.formattedDuration(metrics.totalDuration, style: .abbreviated) : "--",
-                icon: "waveform",
-                tint: AppTheme.Accent.primary
-            )
-
-            DashboardProductivityMetricTile(
-                title: "Productivity",
-                value: metrics.hasData ? Self.formattedMultiplier(metrics.productivityMultiplier) : "--",
-                icon: "bolt.fill",
-                tint: AppTheme.Sidebar.license
-            )
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Productivity statistics")
-    }
-
-    private static func formattedMultiplier(_ value: Double) -> String {
-        guard value > 0 else {
-            return "--"
-        }
-
-        return String(format: String(localized: "%.1fx faster"), value)
-    }
-}
-
-private struct DashboardProductivityMetricTile: View {
-    let title: LocalizedStringKey
-    let value: String
-    let icon: String
-    let tint: Color
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            DashboardIconGlyph(systemName: icon, color: tint, size: 14, frameSize: 30)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value)
-                    .font(.system(size: 21, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.Text.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-
-                Text(title)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(AppTheme.Text.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(14)
-        .frame(minHeight: 76, alignment: .center)
-        .background(AppCardBackground(cornerRadius: 14))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(title)
-        .accessibilityValue(value)
     }
 }
 
