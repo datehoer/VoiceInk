@@ -30,6 +30,9 @@ struct CustomModelBackup: Codable {
     let description: String
     let apiEndpoint: String
     let modelName: String
+    let requestMode: CustomTranscriptionRequestMode?
+    let modelDiscoveryEndpoint: String?
+    let customBodyTemplate: String?
     let isMultilingualModel: Bool
     let supportedLanguages: [String: String]
     let apiKey: String?
@@ -41,6 +44,9 @@ struct CustomModelBackup: Codable {
         self.description = model.description
         self.apiEndpoint = model.apiEndpoint
         self.modelName = model.modelName
+        self.requestMode = model.requestMode
+        self.modelDiscoveryEndpoint = model.modelDiscoveryEndpoint
+        self.customBodyTemplate = model.customBodyTemplate
         self.isMultilingualModel = model.isMultilingualModel
         self.supportedLanguages = model.supportedLanguages
         self.apiKey = nil
@@ -54,6 +60,9 @@ struct CustomModelBackup: Codable {
             description: description,
             apiEndpoint: apiEndpoint.trimmingCharacters(in: .whitespacesAndNewlines),
             modelName: modelName.trimmingCharacters(in: .whitespacesAndNewlines),
+            requestMode: requestMode,
+            modelDiscoveryEndpoint: modelDiscoveryEndpoint,
+            customBodyTemplate: customBodyTemplate,
             isMultilingual: isMultilingualModel,
             supportedLanguages: supportedLanguages
         )

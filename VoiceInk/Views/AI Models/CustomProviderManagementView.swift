@@ -178,13 +178,22 @@ struct CustomTranscriptionModelEditorPanel: View {
     let onClose: () -> Void
     let onSave: () -> Void
 
+    private let modelDiscoveryService = CustomModelDiscoveryService()
+
     @State private var displayName = ""
     @State private var apiEndpoint = ""
     @State private var apiKey = ""
     @State private var modelName = ""
+    @State private var requestMode: CustomTranscriptionRequestMode = .audioTranscriptions
+    @State private var modelDiscoveryEndpoint = ""
+    @State private var customBodyTemplate = CustomTranscriptionBodyTemplatePresets.chatAudioJSON
     @State private var isMultilingual = true
     @State private var validationErrors: [String] = []
+    @State private var modelFetchError: String?
+    @State private var fetchedModels: [String] = []
     @State private var isSaving = false
+    @State private var isFetchingModels = false
+    @State private var isAPIKeyVisible = false
 
     private var isEditing: Bool {
         editingModel != nil
@@ -199,13 +208,54 @@ struct CustomTranscriptionModelEditorPanel: View {
                     CustomModelEditorSection(title: "Details") {
                         VStack(spacing: 10) {
                             CustomModelTextField(label: "Display Name", placeholder: String(localized: "My Custom Model"), text: $displayName)
-                            CustomModelTextField(label: "API Endpoint", placeholder: "https://api.openai.com/v1/audio/transcriptions", text: $apiEndpoint)
-                            if !isEditing {
-                                CustomModelTextField(label: "API Key", placeholder: String(localized: "Paste API key"), text: $apiKey, isSecure: true)
-                            }
-                            CustomModelTextField(label: "Model Name", placeholder: "gpt-4o-mini-transcribe", text: $modelName)
+                            CustomModelRequestModeRow(selection: $requestMode)
+                            CustomModelTextField(label: "API Endpoint", placeholder: requestMode.defaultEndpoint, text: $apiEndpoint)
+                            CustomModelAPIKeyField(label: "API Key", placeholder: String(localized: "Paste API key"), text: $apiKey, isRevealed: $isAPIKeyVisible)
+                            CustomModelTextField(label: "Models URL", placeholder: derivedModelsEndpointPlaceholder, text: $modelDiscoveryEndpoint)
+                            CustomModelModelPickerRow(
+                                text: $modelName,
+                                models: fetchedModels,
+                                isFetching: isFetchingModels,
+                                fetchAction: fetchModels
+                            )
                             CustomModelToggleRow(title: "Multilingual Model", isOn: $isMultilingual)
                         }
+                    }
+
+                    if requestMode == .customJSON {
+                        CustomModelEditorSection(title: "Body Template") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                CustomModelTemplateToolbar(
+                                    applyChatPreset: {
+                                        customBodyTemplate = CustomTranscriptionBodyTemplatePresets.chatAudioJSON
+                                    },
+                                    applyInputPreset: {
+                                        customBodyTemplate = CustomTranscriptionBodyTemplatePresets.simpleInputAudioJSON
+                                    },
+                                    insertPlaceholder: { placeholder in
+                                        customBodyTemplate.append(placeholder)
+                                    }
+                                )
+
+                                TextEditor(text: $customBodyTemplate)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .scrollContentBackground(.hidden)
+                                    .frame(minHeight: 220)
+                                    .padding(8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(AppTheme.Surface.control)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .stroke(AppTheme.Border.control.opacity(0.45), lineWidth: 1)
+                                            )
+                                    )
+                            }
+                        }
+                    }
+
+                    if let modelFetchError {
+                        CustomModelErrorBox(messages: [modelFetchError])
                     }
 
                     if !validationErrors.isEmpty {
@@ -225,32 +275,46 @@ struct CustomTranscriptionModelEditorPanel: View {
         .onChange(of: editingModel?.id) { _, _ in
             loadModel()
         }
+        .onChange(of: requestMode) { _, newMode in
+            applyRequestModeDefaults(newMode)
+        }
     }
 
     private var canSave: Bool {
         !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !apiEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        (isEditing || !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        (requestMode != .customJSON || !customBodyTemplate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     private func loadModel() {
         if let editingModel {
             displayName = editingModel.displayName
             apiEndpoint = editingModel.apiEndpoint
-            apiKey = ""
+            apiKey = editingModel.apiKey
             modelName = editingModel.modelName
+            requestMode = editingModel.requestMode
+            modelDiscoveryEndpoint = editingModel.modelDiscoveryEndpoint ?? ""
+            customBodyTemplate = editingModel.customBodyTemplate ?? CustomTranscriptionBodyTemplatePresets.chatAudioJSON
             isMultilingual = editingModel.isMultilingualModel
         } else {
             displayName = ""
-            apiEndpoint = "https://api.openai.com/v1/audio/transcriptions"
+            requestMode = .audioTranscriptions
+            apiEndpoint = CustomTranscriptionRequestMode.audioTranscriptions.defaultEndpoint
             apiKey = ""
             modelName = "gpt-4o-mini-transcribe"
+            modelDiscoveryEndpoint = ""
+            customBodyTemplate = CustomTranscriptionBodyTemplatePresets.chatAudioJSON
             isMultilingual = true
         }
 
         validationErrors = []
+        modelFetchError = nil
+        fetchedModels = []
         isSaving = false
+        isFetchingModels = false
+        isAPIKeyVisible = false
     }
 
     private func saveModel() {
@@ -258,6 +322,8 @@ struct CustomTranscriptionModelEditorPanel: View {
         let trimmedEndpoint = apiEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedModelName = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDiscoveryEndpoint = modelDiscoveryEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBodyTemplate = customBodyTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
         let generatedName = trimmedDisplayName.lowercased().replacingOccurrences(of: " ", with: "-")
 
         validationErrors = customModelManager.validateModelDetails(
@@ -268,12 +334,33 @@ struct CustomTranscriptionModelEditorPanel: View {
             excludingId: editingModel?.id
         )
 
-        if !isEditing && trimmedKey.isEmpty {
+        if trimmedKey.isEmpty {
             validationErrors.append(String(localized: "API key cannot be empty"))
+        }
+
+        if !trimmedDiscoveryEndpoint.isEmpty && URL(string: trimmedDiscoveryEndpoint)?.host == nil {
+            validationErrors.append(String(localized: "Models URL must be a valid URL"))
+        }
+
+        if requestMode == .customJSON {
+            do {
+                _ = try OpenAICompatibleTranscriptionService.makeCustomJSONRequestBody(
+                    audioData: Data([0x00]),
+                    modelName: trimmedModelName,
+                    context: TranscriptionRequestContext(language: "auto", prompt: ""),
+                    audioFormat: "wav",
+                    template: trimmedBodyTemplate
+                )
+            } catch {
+                validationErrors.append(String(localized: "Custom JSON template must be valid JSON"))
+            }
         }
 
         guard validationErrors.isEmpty else { return }
         isSaving = true
+
+        let savedDiscoveryEndpoint = trimmedDiscoveryEndpoint.isEmpty ? nil : trimmedDiscoveryEndpoint
+        let savedTemplate = requestMode == .customJSON ? trimmedBodyTemplate : nil
 
         if let editingModel {
             let updatedModel = CustomCloudModel(
@@ -283,10 +370,17 @@ struct CustomTranscriptionModelEditorPanel: View {
                 description: "Custom transcription model",
                 apiEndpoint: trimmedEndpoint,
                 modelName: trimmedModelName,
+                requestMode: requestMode,
+                modelDiscoveryEndpoint: savedDiscoveryEndpoint,
+                customBodyTemplate: savedTemplate,
                 isMultilingual: isMultilingual
             )
 
-            customModelManager.updateCustomModel(updatedModel)
+            guard customModelManager.updateCustomModel(updatedModel, apiKey: trimmedKey) else {
+                validationErrors = [String(localized: "Failed to save API key securely")]
+                isSaving = false
+                return
+            }
         } else {
             let customModel = CustomCloudModel(
                 name: generatedName,
@@ -294,6 +388,9 @@ struct CustomTranscriptionModelEditorPanel: View {
                 description: "Custom transcription model",
                 apiEndpoint: trimmedEndpoint,
                 modelName: trimmedModelName,
+                requestMode: requestMode,
+                modelDiscoveryEndpoint: savedDiscoveryEndpoint,
+                customBodyTemplate: savedTemplate,
                 isMultilingual: isMultilingual
             )
 
@@ -306,6 +403,71 @@ struct CustomTranscriptionModelEditorPanel: View {
 
         isSaving = false
         onSave()
+    }
+
+    private var derivedModelsEndpointPlaceholder: String {
+        CustomModelDiscoveryEndpointResolver.endpoint(from: apiEndpoint)?.absoluteString ?? "https://api.openai.com/v1/models"
+    }
+
+    private func fetchModels() {
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else {
+            modelFetchError = String(localized: "API key cannot be empty")
+            return
+        }
+
+        let trimmedModelsEndpoint = modelDiscoveryEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let endpointURL: URL?
+        if trimmedModelsEndpoint.isEmpty {
+            endpointURL = CustomModelDiscoveryEndpointResolver.endpoint(from: apiEndpoint)
+        } else {
+            endpointURL = URL(string: trimmedModelsEndpoint)
+        }
+
+        guard let endpointURL, endpointURL.host != nil else {
+            modelFetchError = String(localized: "Models URL must be a valid URL")
+            return
+        }
+
+        isFetchingModels = true
+        modelFetchError = nil
+
+        Task {
+            do {
+                let models = try await modelDiscoveryService.fetchModels(endpoint: endpointURL, apiKey: trimmedKey)
+                await MainActor.run {
+                    fetchedModels = models
+                    if modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let firstModel = models.first {
+                        modelName = firstModel
+                    }
+                    if trimmedModelsEndpoint.isEmpty {
+                        modelDiscoveryEndpoint = endpointURL.absoluteString
+                    }
+                    isFetchingModels = false
+                }
+            } catch {
+                await MainActor.run {
+                    fetchedModels = []
+                    modelFetchError = error.localizedDescription
+                    isFetchingModels = false
+                }
+            }
+        }
+    }
+
+    private func applyRequestModeDefaults(_ newMode: CustomTranscriptionRequestMode) {
+        let trimmedEndpoint = apiEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let defaultEndpoints = Set(CustomTranscriptionRequestMode.allCases.map(\.defaultEndpoint))
+        if trimmedEndpoint.isEmpty || defaultEndpoints.contains(trimmedEndpoint) {
+            apiEndpoint = newMode.defaultEndpoint
+        }
+
+        if newMode == .customJSON && customBodyTemplate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            customBodyTemplate = CustomTranscriptionBodyTemplatePresets.chatAudioJSON
+        }
+
+        modelFetchError = nil
+        fetchedModels = []
     }
 
     private func editorHeader(title: LocalizedStringKey) -> some View {
@@ -499,8 +661,8 @@ struct CustomEnhancementModelEditorPanel: View {
 }
 
 private enum CustomModelEditorMetrics {
-    static let labelWidth: CGFloat = 112
-    static let fieldMaxWidth: CGFloat = 220
+    static let labelWidth: CGFloat = 104
+    static let fieldMaxWidth: CGFloat = 236
 }
 
 private struct CustomModelEditorSection<Content: View>: View {
@@ -553,6 +715,156 @@ private struct CustomModelTextField: View {
             .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CustomModelRequestModeRow: View {
+    @Binding var selection: CustomTranscriptionRequestMode
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("Request")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
+
+            Picker("", selection: $selection) {
+                ForEach(CustomTranscriptionRequestMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CustomModelAPIKeyField: View {
+    let label: LocalizedStringKey
+    let placeholder: String
+    @Binding var text: String
+    @Binding var isRevealed: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
+
+            HStack(spacing: 6) {
+                Group {
+                    if isRevealed {
+                        TextField("", text: $text, prompt: Text(verbatim: placeholder))
+                    } else {
+                        SecureField(placeholder, text: $text)
+                    }
+                }
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12))
+
+                Button {
+                    isRevealed.toggle()
+                } label: {
+                    Image(systemName: isRevealed ? "eye.slash" : "eye")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.borderless)
+                .frame(width: 24, height: 24)
+                .help(isRevealed ? "Hide API key" : "Show API key")
+            }
+            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CustomModelModelPickerRow: View {
+    @Binding var text: String
+    let models: [String]
+    let isFetching: Bool
+    let fetchAction: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("Model Name")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
+
+            HStack(spacing: 6) {
+                TextField("", text: $text, prompt: Text(verbatim: "gpt-4o-mini-transcribe"))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+
+                Menu {
+                    if models.isEmpty {
+                        Text("No fetched models")
+                    } else {
+                        ForEach(models, id: \.self) { model in
+                            Button(model) {
+                                text = model
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.borderless)
+                .frame(width: 24, height: 24)
+                .disabled(models.isEmpty)
+                .help("Select fetched model")
+
+                Button(action: fetchAction) {
+                    if isFetching {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                }
+                .buttonStyle(.borderless)
+                .frame(width: 24, height: 24)
+                .disabled(isFetching)
+                .help("Fetch models")
+            }
+            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CustomModelTemplateToolbar: View {
+    let applyChatPreset: () -> Void
+    let applyInputPreset: () -> Void
+    let insertPlaceholder: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Menu("Preset") {
+                Button("Chat Audio JSON", action: applyChatPreset)
+                Button("Responses Input Audio JSON", action: applyInputPreset)
+            }
+
+            Menu("Insert") {
+                ForEach(CustomTranscriptionBodyTemplatePresets.placeholderTokens, id: \.self) { placeholder in
+                    Button(placeholder) {
+                        insertPlaceholder(placeholder)
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 12))
     }
 }
 

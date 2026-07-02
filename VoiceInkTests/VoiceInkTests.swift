@@ -46,6 +46,118 @@ struct VoiceInkTests {
         })
     }
 
+    @Test func customRequestModeMigratesFromLegacyEndpointPath() throws {
+        let legacyJSON = """
+        {
+          "id": "72D5EF0B-ABCE-4D6D-8215-ED2F58A8E1C4",
+          "name": "gemini",
+          "displayName": "Gemini",
+          "description": "Custom transcription model",
+          "apiEndpoint": "https://api.example.com/v1/chat/completions",
+          "modelName": "models/gemini-3.5-flash",
+          "isMultilingualModel": true,
+          "supportedLanguages": { "en": "English" }
+        }
+        """.data(using: .utf8)!
+
+        let model = try JSONDecoder().decode(CustomCloudModel.self, from: legacyJSON)
+
+        #expect(model.requestMode == .chatCompletions)
+        #expect(model.modelDiscoveryEndpoint == nil)
+        #expect(model.customBodyTemplate == nil)
+    }
+
+    @Test func modelDiscoveryEndpointIsDerivedFromCommonOpenAICompatiblePaths() throws {
+        #expect(
+            CustomModelDiscoveryEndpointResolver.endpoint(from: "https://api.example.com/v1/audio/transcriptions")?
+                .absoluteString == "https://api.example.com/v1/models"
+        )
+        #expect(
+            CustomModelDiscoveryEndpointResolver.endpoint(from: "https://api.example.com/v1/chat/completions")?
+                .absoluteString == "https://api.example.com/v1/models"
+        )
+        #expect(
+            CustomModelDiscoveryEndpointResolver.endpoint(from: "https://api.example.com/openai/deployments/transcribe/audio/transcriptions")?
+                .absoluteString == "https://api.example.com/openai/deployments/transcribe/models"
+        )
+    }
+
+    @Test func modelDiscoveryParsesOpenAICompatibleAndGeminiStylePayloads() throws {
+        let openAIModels = try CustomModelDiscoveryResponseParser.modelNames(
+            from: """
+            { "data": [{ "id": "gpt-4o-mini-transcribe" }, { "id": "whisper-1" }] }
+            """.data(using: .utf8)!
+        )
+
+        #expect(openAIModels == ["gpt-4o-mini-transcribe", "whisper-1"])
+
+        let geminiModels = try CustomModelDiscoveryResponseParser.modelNames(
+            from: """
+            { "models": [{ "name": "models/gemini-3.5-flash" }, { "name": "models/gemini-2.5-flash" }] }
+            """.data(using: .utf8)!
+        )
+
+        #expect(geminiModels == ["models/gemini-3.5-flash", "models/gemini-2.5-flash"])
+    }
+
+    @Test func customJSONTemplateReplacesAudioAndModelPlaceholders() throws {
+        let audioData = Data([0x01, 0x02, 0x03])
+        let body = try OpenAICompatibleTranscriptionService.makeCustomJSONRequestBody(
+            audioData: audioData,
+            modelName: "models/gemini-3.5-flash",
+            context: TranscriptionRequestContext(language: "en", prompt: "medical names"),
+            audioFormat: "wav",
+            template: """
+            {
+              "model": "{{model}}",
+              "messages": [
+                {
+                  "role": "user",
+                  "content": [
+                    { "type": "text", "text": "Prompt: {{prompt}} Language: {{language}}" },
+                    { "type": "input_audio", "input_audio": { "data": "{{audio_base64}}", "format": "{{audio_format}}" } }
+                  ]
+                }
+              ],
+              "temperature": {{temperature}}
+            }
+            """
+        )
+
+        let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(object["model"] as? String == "models/gemini-3.5-flash")
+        #expect(object["temperature"] as? Double == 0)
+
+        let messages = try #require(object["messages"] as? [[String: Any]])
+        let content = try #require(messages.first?["content"] as? [[String: Any]])
+        #expect(content.contains { part in
+            part["type"] as? String == "text" &&
+                (part["text"] as? String)?.contains("Prompt: medical names Language: en") == true
+        })
+        #expect(content.contains { part in
+            guard part["type"] as? String == "input_audio",
+                  let inputAudio = part["input_audio"] as? [String: Any] else {
+                return false
+            }
+            return inputAudio["data"] as? String == audioData.base64EncodedString() &&
+                inputAudio["format"] as? String == "wav"
+        })
+    }
+
+    @Test func transcriptionResponseDecoderHandlesCommonCustomJSONShapes() throws {
+        let textResponse = try OpenAICompatibleTranscriptionService.decodeTranscriptionText(
+            from: #"{"text":"hello world"}"#.data(using: .utf8)!,
+            requestMode: .customJSON
+        )
+        let chatResponse = try OpenAICompatibleTranscriptionService.decodeTranscriptionText(
+            from: #"{"choices":[{"message":{"content":"chat text"}}]}"#.data(using: .utf8)!,
+            requestMode: .customJSON
+        )
+
+        #expect(textResponse == "hello world")
+        #expect(chatResponse == "chat text")
+    }
+
     @Test func cloudTranscriptionTimeoutDefaultsToLongerRequestWindow() throws {
         let defaults = try #require(UserDefaults(suiteName: "VoiceInkTests.timeout.default"))
         defaults.removePersistentDomain(forName: "VoiceInkTests.timeout.default")

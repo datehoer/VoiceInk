@@ -41,6 +41,11 @@ struct CustomModelCardView: View {
                 .font(.system(size: 11))
                 .foregroundColor(Color(.secondaryLabelColor))
                 .lineLimit(1)
+
+            Label(model.requestMode.detailTitle, systemImage: "arrow.left.arrow.right")
+                .font(.system(size: 11))
+                .foregroundColor(Color(.secondaryLabelColor))
+                .lineLimit(1)
             
             // Language
             Label(model.language, systemImage: "globe")

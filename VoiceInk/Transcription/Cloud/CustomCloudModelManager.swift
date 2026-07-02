@@ -45,6 +45,18 @@ class CustomCloudModelManager: ObservableObject {
             saveCustomModels()
         }
     }
+
+    @discardableResult
+    func updateCustomModel(_ updatedModel: CustomCloudModel, apiKey: String) -> Bool {
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty,
+              APIKeyManager.shared.saveCustomModelAPIKey(trimmedKey, forModelId: updatedModel.id) else {
+            return false
+        }
+
+        updateCustomModel(updatedModel)
+        return true
+    }
     
     // MARK: - Persistence
     

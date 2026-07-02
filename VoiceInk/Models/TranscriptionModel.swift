@@ -136,6 +136,9 @@ struct CustomCloudModel: TranscriptionModel, Codable {
     let provider: ModelProvider = .custom
     let apiEndpoint: String
     let modelName: String
+    let requestMode: CustomTranscriptionRequestMode
+    let modelDiscoveryEndpoint: String?
+    let customBodyTemplate: String?
     let isMultilingualModel: Bool
     let supportedLanguages: [String: String]
 
@@ -144,20 +147,23 @@ struct CustomCloudModel: TranscriptionModel, Codable {
         APIKeyManager.shared.getCustomModelAPIKey(forModelId: id) ?? ""
     }
 
-    init(id: UUID = UUID(), name: String, displayName: String, description: String, apiEndpoint: String, modelName: String, isMultilingual: Bool = true, supportedLanguages: [String: String]? = nil) {
+    init(id: UUID = UUID(), name: String, displayName: String, description: String, apiEndpoint: String, modelName: String, requestMode: CustomTranscriptionRequestMode? = nil, modelDiscoveryEndpoint: String? = nil, customBodyTemplate: String? = nil, isMultilingual: Bool = true, supportedLanguages: [String: String]? = nil) {
         self.id = id
         self.name = name
         self.displayName = displayName
         self.description = description
         self.apiEndpoint = apiEndpoint
         self.modelName = modelName
+        self.requestMode = requestMode ?? CustomTranscriptionRequestMode.inferred(from: apiEndpoint)
+        self.modelDiscoveryEndpoint = modelDiscoveryEndpoint
+        self.customBodyTemplate = customBodyTemplate
         self.isMultilingualModel = isMultilingual
         self.supportedLanguages = supportedLanguages ?? LanguageDictionary.forProvider(isMultilingual: isMultilingual)
     }
 
     /// Custom Codable to migrate legacy apiKey from JSON to Keychain.
     private enum CodingKeys: String, CodingKey {
-        case id, name, displayName, description, apiEndpoint, modelName, isMultilingualModel, supportedLanguages
+        case id, name, displayName, description, apiEndpoint, modelName, requestMode, modelDiscoveryEndpoint, customBodyTemplate, isMultilingualModel, supportedLanguages
         case apiKey
     }
 
@@ -169,6 +175,9 @@ struct CustomCloudModel: TranscriptionModel, Codable {
         description = try container.decode(String.self, forKey: .description)
         apiEndpoint = try container.decode(String.self, forKey: .apiEndpoint)
         modelName = try container.decode(String.self, forKey: .modelName)
+        requestMode = try container.decodeIfPresent(CustomTranscriptionRequestMode.self, forKey: .requestMode) ?? CustomTranscriptionRequestMode.inferred(from: apiEndpoint)
+        modelDiscoveryEndpoint = try container.decodeIfPresent(String.self, forKey: .modelDiscoveryEndpoint)
+        customBodyTemplate = try container.decodeIfPresent(String.self, forKey: .customBodyTemplate)
         isMultilingualModel = try container.decode(Bool.self, forKey: .isMultilingualModel)
         supportedLanguages = try container.decode([String: String].self, forKey: .supportedLanguages)
 
@@ -185,6 +194,9 @@ struct CustomCloudModel: TranscriptionModel, Codable {
         try container.encode(description, forKey: .description)
         try container.encode(apiEndpoint, forKey: .apiEndpoint)
         try container.encode(modelName, forKey: .modelName)
+        try container.encode(requestMode, forKey: .requestMode)
+        try container.encodeIfPresent(modelDiscoveryEndpoint, forKey: .modelDiscoveryEndpoint)
+        try container.encodeIfPresent(customBodyTemplate, forKey: .customBodyTemplate)
         try container.encode(isMultilingualModel, forKey: .isMultilingualModel)
         try container.encode(supportedLanguages, forKey: .supportedLanguages)
     }
