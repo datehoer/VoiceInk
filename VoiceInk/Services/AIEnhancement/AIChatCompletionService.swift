@@ -26,12 +26,15 @@ extension AIService {
                   let baseURL = URL(string: customConfiguration.baseURL) else {
                 throw EnhancementError.notConfigured
             }
+            let effectiveSystemPrompt = customConfiguration.effectiveSystemPrompt(fallback: systemPrompt ?? "")
+            let requestSystemPrompt = effectiveSystemPrompt.isEmpty ? nil : effectiveSystemPrompt
+
             if let template = customConfiguration.customBodyTemplate,
                !template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 let body = try CustomEnhancementRequestTemplateRenderer.makeRequestBody(
                     modelName: customConfiguration.modelName,
                     messages: messages,
-                    systemPrompt: systemPrompt,
+                    systemPrompt: requestSystemPrompt,
                     temperature: 0.3,
                     template: template
                 )
@@ -47,7 +50,7 @@ extension AIService {
                     apiKey: customConfiguration.apiKey,
                     model: customConfiguration.modelName,
                     messages: messages,
-                    systemPrompt: systemPrompt,
+                    systemPrompt: requestSystemPrompt,
                     temperature: 0.3,
                     timeout: timeout
                 )

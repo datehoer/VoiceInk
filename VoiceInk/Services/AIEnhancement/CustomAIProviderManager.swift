@@ -8,6 +8,7 @@ struct CustomAIProviderConfig: Identifiable, Codable, Hashable {
     var models: [String]
     var selectedModel: String
     var modelDiscoveryEndpoint: String?
+    var systemPrompt: String?
     var customBodyTemplate: String?
 
     init(
@@ -17,14 +18,18 @@ struct CustomAIProviderConfig: Identifiable, Codable, Hashable {
         models: [String],
         selectedModel: String,
         modelDiscoveryEndpoint: String? = nil,
+        systemPrompt: String? = nil,
         customBodyTemplate: String? = nil
     ) {
+        let trimmedSystemPrompt = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
         self.id = id
         self.name = name
         self.baseURL = baseURL
         self.models = models
         self.selectedModel = selectedModel
         self.modelDiscoveryEndpoint = modelDiscoveryEndpoint
+        self.systemPrompt = trimmedSystemPrompt.isEmpty ? nil : trimmedSystemPrompt
         self.customBodyTemplate = customBodyTemplate
     }
 
@@ -56,6 +61,7 @@ struct CustomAIProviderConfig: Identifiable, Codable, Hashable {
         let trimmedSelectedModel = selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedModelName = normalizedModels.contains(trimmedSelectedModel) ? trimmedSelectedModel : normalizedModels.first ?? ""
         let trimmedDiscoveryEndpoint = modelDiscoveryEndpoint?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmedSystemPrompt = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let trimmedTemplate = customBodyTemplate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         return CustomAIProviderConfig(
@@ -65,6 +71,7 @@ struct CustomAIProviderConfig: Identifiable, Codable, Hashable {
             models: normalizedModels,
             selectedModel: resolvedModelName,
             modelDiscoveryEndpoint: trimmedDiscoveryEndpoint.isEmpty ? nil : trimmedDiscoveryEndpoint,
+            systemPrompt: trimmedSystemPrompt.isEmpty ? nil : trimmedSystemPrompt,
             customBodyTemplate: trimmedTemplate.isEmpty ? nil : trimmedTemplate
         )
     }
@@ -88,7 +95,23 @@ struct CustomAIProviderRequestConfiguration {
     let baseURL: String
     let apiKey: String
     let modelName: String
+    let systemPrompt: String?
     let customBodyTemplate: String?
+
+    func effectiveSystemPrompt(fallback: String) -> String {
+        let trimmedSystemPrompt = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmedFallback = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmedSystemPrompt.isEmpty {
+            return trimmedFallback
+        }
+
+        if trimmedFallback.isEmpty {
+            return trimmedSystemPrompt
+        }
+
+        return "\(trimmedSystemPrompt)\n\n\(trimmedFallback)"
+    }
 }
 
 final class CustomAIProviderManager: ObservableObject {
@@ -222,6 +245,7 @@ final class CustomAIProviderManager: ObservableObject {
             baseURL: provider.baseURL,
             apiKey: apiKey,
             modelName: provider.resolvedModelName(for: modelName),
+            systemPrompt: provider.systemPrompt,
             customBodyTemplate: provider.customBodyTemplate
         )
     }

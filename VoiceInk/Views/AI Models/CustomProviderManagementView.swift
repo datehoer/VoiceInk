@@ -194,6 +194,7 @@ struct CustomTranscriptionModelEditorPanel: View {
     @State private var modelName = ""
     @State private var requestMode: CustomTranscriptionRequestMode = .audioTranscriptions
     @State private var modelDiscoveryEndpoint = ""
+    @State private var transcriptionPrompt = ""
     @State private var customBodyTemplate = CustomTranscriptionBodyTemplatePresets.chatAudioJSON
     @State private var isMultilingual = true
     @State private var validationErrors: [String] = []
@@ -225,6 +226,11 @@ struct CustomTranscriptionModelEditorPanel: View {
                                 models: fetchedModels,
                                 isFetching: isFetchingModels,
                                 fetchAction: fetchModels
+                            )
+                            CustomModelPromptEditorRow(
+                                label: "Prompt",
+                                placeholder: String(localized: "Leave empty to use the global transcription prompt."),
+                                text: $transcriptionPrompt
                             )
                             CustomModelToggleRow(title: "Multilingual Model", isOn: $isMultilingual)
                         }
@@ -304,6 +310,7 @@ struct CustomTranscriptionModelEditorPanel: View {
             modelName = editingModel.modelName
             requestMode = editingModel.requestMode
             modelDiscoveryEndpoint = editingModel.modelDiscoveryEndpoint ?? ""
+            transcriptionPrompt = editingModel.transcriptionPrompt ?? ""
             customBodyTemplate = editingModel.customBodyTemplate ?? CustomTranscriptionBodyTemplatePresets.chatAudioJSON
             isMultilingual = editingModel.isMultilingualModel
         } else {
@@ -313,6 +320,7 @@ struct CustomTranscriptionModelEditorPanel: View {
             apiKey = ""
             modelName = "gpt-4o-mini-transcribe"
             modelDiscoveryEndpoint = ""
+            transcriptionPrompt = ""
             customBodyTemplate = CustomTranscriptionBodyTemplatePresets.chatAudioJSON
             isMultilingual = true
         }
@@ -331,6 +339,7 @@ struct CustomTranscriptionModelEditorPanel: View {
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedModelName = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDiscoveryEndpoint = modelDiscoveryEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTranscriptionPrompt = transcriptionPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedBodyTemplate = customBodyTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
         let generatedName = trimmedDisplayName.lowercased().replacingOccurrences(of: " ", with: "-")
 
@@ -368,6 +377,7 @@ struct CustomTranscriptionModelEditorPanel: View {
         isSaving = true
 
         let savedDiscoveryEndpoint = trimmedDiscoveryEndpoint.isEmpty ? nil : trimmedDiscoveryEndpoint
+        let savedTranscriptionPrompt = TranscriptionPromptSettings.isDefaultSelection(trimmedTranscriptionPrompt) ? nil : trimmedTranscriptionPrompt
         let savedTemplate = requestMode == .customJSON ? trimmedBodyTemplate : nil
 
         if let editingModel {
@@ -380,6 +390,7 @@ struct CustomTranscriptionModelEditorPanel: View {
                 modelName: trimmedModelName,
                 requestMode: requestMode,
                 modelDiscoveryEndpoint: savedDiscoveryEndpoint,
+                transcriptionPrompt: savedTranscriptionPrompt,
                 customBodyTemplate: savedTemplate,
                 isMultilingual: isMultilingual
             )
@@ -398,6 +409,7 @@ struct CustomTranscriptionModelEditorPanel: View {
                 modelName: trimmedModelName,
                 requestMode: requestMode,
                 modelDiscoveryEndpoint: savedDiscoveryEndpoint,
+                transcriptionPrompt: savedTranscriptionPrompt,
                 customBodyTemplate: savedTemplate,
                 isMultilingual: isMultilingual
             )
@@ -506,6 +518,7 @@ struct CustomEnhancementModelEditorPanel: View {
     @State private var modelName = ""
     @State private var requestMode: CustomEnhancementRequestMode = .chatCompletions
     @State private var modelDiscoveryEndpoint = ""
+    @State private var systemPrompt = ""
     @State private var customBodyTemplate = CustomEnhancementBodyTemplatePresets.chatCompletionsJSON
     @State private var errorMessage: String?
     @State private var modelFetchError: String?
@@ -541,6 +554,11 @@ struct CustomEnhancementModelEditorPanel: View {
                                 models: fetchedModels,
                                 isFetching: isFetchingModels,
                                 fetchAction: fetchModels
+                            )
+                            CustomModelPromptEditorRow(
+                                label: "Prompt",
+                                placeholder: String(localized: "Optional system instructions for this model. Leave empty to use the selected enhancement prompt only."),
+                                text: $systemPrompt
                             )
                         }
                     }
@@ -622,6 +640,7 @@ struct CustomEnhancementModelEditorPanel: View {
             modelName = editingProvider.modelName
             requestMode = editingProvider.customBodyTemplate == nil ? .chatCompletions : .customJSON
             modelDiscoveryEndpoint = editingProvider.modelDiscoveryEndpoint ?? ""
+            systemPrompt = editingProvider.systemPrompt ?? ""
             customBodyTemplate = editingProvider.customBodyTemplate ?? CustomEnhancementBodyTemplatePresets.chatCompletionsJSON
             fetchedModels = editingProvider.trimmedModels
         } else {
@@ -631,6 +650,7 @@ struct CustomEnhancementModelEditorPanel: View {
             modelName = "gpt-5.5"
             requestMode = .chatCompletions
             modelDiscoveryEndpoint = ""
+            systemPrompt = ""
             customBodyTemplate = CustomEnhancementBodyTemplatePresets.chatCompletionsJSON
             fetchedModels = []
         }
@@ -661,6 +681,7 @@ struct CustomEnhancementModelEditorPanel: View {
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedModelName = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDiscoveryEndpoint = modelDiscoveryEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSystemPrompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedBodyTemplate = customBodyTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
 
         var validationErrors = manager.validateProvider(
@@ -706,6 +727,7 @@ struct CustomEnhancementModelEditorPanel: View {
             models: savedModels(selectedModel: trimmedModelName),
             selectedModel: trimmedModelName,
             modelDiscoveryEndpoint: trimmedDiscoveryEndpoint.isEmpty ? nil : trimmedDiscoveryEndpoint,
+            systemPrompt: trimmedSystemPrompt.isEmpty ? nil : trimmedSystemPrompt,
             customBodyTemplate: requestMode == .customJSON ? trimmedBodyTemplate : nil
         )
 
@@ -868,6 +890,50 @@ private struct CustomModelTextField: View {
             .textFieldStyle(.roundedBorder)
             .font(.system(size: 12))
             .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CustomModelPromptEditorRow: View {
+    let label: LocalizedStringKey
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
+                .padding(.top, 7)
+
+            ZStack(alignment: .topLeading) {
+                if text.isEmpty {
+                    Text(placeholder)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                }
+
+                TextEditor(text: $text)
+                    .font(.system(size: 12))
+                    .scrollContentBackground(.hidden)
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 4)
+            }
+            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, minHeight: 84)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(AppTheme.Surface.control)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(AppTheme.Border.control.opacity(0.45), lineWidth: 1)
+                    )
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

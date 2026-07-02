@@ -83,6 +83,12 @@ struct TranscriptionRequestContext {
     }
 
     func scoped(to model: any TranscriptionModel) -> TranscriptionRequestContext {
+        if let customModel = model as? CustomCloudModel,
+           let modelPrompt = customModel.transcriptionPrompt,
+           !TranscriptionPromptSettings.isDefaultSelection(modelPrompt) {
+            return TranscriptionRequestContext(language: language, prompt: modelPrompt)
+        }
+
         return self
     }
 }

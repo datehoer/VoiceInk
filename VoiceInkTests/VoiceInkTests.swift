@@ -91,6 +91,35 @@ struct VoiceInkTests {
         #expect(context.scoped(to: customModel).prompt == "Use product names exactly.")
     }
 
+    @Test func customTranscriptionModelPromptOverridesGlobalPromptInRequests() throws {
+        let model = CustomCloudModel(
+            name: "custom-transcribe",
+            displayName: "Custom Transcribe",
+            description: "Custom transcription model",
+            apiEndpoint: "https://api.example.com/v1/audio/transcriptions",
+            modelName: "whisper-1",
+            transcriptionPrompt: "Prefer Acme product names and keep issue IDs verbatim."
+        )
+        let context = TranscriptionRequestContext(
+            language: "en",
+            prompt: "Global prompt should not be sent."
+        )
+        let scopedContext = context.scoped(to: model)
+
+        let body = OpenAICompatibleTranscriptionService.makeAudioTranscriptionsRequestBody(
+            audioData: Data([0x01, 0x02]),
+            fileName: "sample.wav",
+            modelName: model.modelName,
+            boundary: "Boundary-Test",
+            context: scopedContext
+        )
+        let bodyString = try #require(String(data: body, encoding: .utf8))
+
+        #expect(scopedContext.prompt == "Prefer Acme product names and keep issue IDs verbatim.")
+        #expect(bodyString.contains("Prefer Acme product names and keep issue IDs verbatim."))
+        #expect(!bodyString.contains("Global prompt should not be sent."))
+    }
+
     @Test func transcriptionPromptFallsBackToDefaultWhenUnsetOrBlank() throws {
         let defaults = try #require(UserDefaults(suiteName: "VoiceInkTests.TranscriptionPrompt.\(UUID().uuidString)"))
         defaults.removeObject(forKey: TranscriptionPromptSettings.userDefaultsKey)
@@ -242,6 +271,7 @@ struct VoiceInkTests {
             models: [" models/gemini-3.5-flash ", "models/gemini-3.5-pro", "models/gemini-3.5-flash", " "],
             selectedModel: "models/gemini-3.5-pro",
             modelDiscoveryEndpoint: "https://api.example.com/v1/models",
+            systemPrompt: "  Always preserve markdown tables.  ",
             customBodyTemplate: #"{"model":"{{model}}","messages":{{messages_json}}}"#
         )
 
@@ -250,7 +280,23 @@ struct VoiceInkTests {
         #expect(stored.models == ["models/gemini-3.5-flash", "models/gemini-3.5-pro"])
         #expect(stored.selectedModel == "models/gemini-3.5-pro")
         #expect(stored.modelDiscoveryEndpoint == "https://api.example.com/v1/models")
+        #expect(stored.systemPrompt == "Always preserve markdown tables.")
         #expect(stored.customBodyTemplate == #"{"model":"{{model}}","messages":{{messages_json}}}"#)
+    }
+
+    @Test func customEnhancementProviderSystemPromptCombinesWithSelectedPrompt() {
+        let configuration = CustomAIProviderRequestConfiguration(
+            baseURL: "https://api.example.com/v1/chat/completions",
+            apiKey: "sk-test",
+            modelName: "models/gemini-3.5-flash",
+            systemPrompt: "Always preserve markdown tables.",
+            customBodyTemplate: nil
+        )
+
+        #expect(
+            configuration.effectiveSystemPrompt(fallback: "Rewrite clearly.") ==
+                "Always preserve markdown tables.\n\nRewrite clearly."
+        )
     }
 
     @Test func customEnhancementJSONTemplateReplacesChatPlaceholders() throws {

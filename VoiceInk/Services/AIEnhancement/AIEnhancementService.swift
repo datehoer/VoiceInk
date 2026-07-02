@@ -254,12 +254,14 @@ class AIEnhancementService: ObservableObject {
                       let baseURL = URL(string: customConfiguration.baseURL) else {
                     throw EnhancementError.notConfigured
                 }
+                let effectiveSystemMessage = customConfiguration.effectiveSystemPrompt(fallback: systemMessage)
+
                 if let template = customConfiguration.customBodyTemplate,
                    !template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     let body = try CustomEnhancementRequestTemplateRenderer.makeRequestBody(
                         modelName: customConfiguration.modelName,
                         messages: [.user(formattedText)],
-                        systemPrompt: systemMessage,
+                        systemPrompt: effectiveSystemMessage,
                         temperature: 0.3,
                         template: template
                     )
@@ -275,7 +277,7 @@ class AIEnhancementService: ObservableObject {
                         apiKey: customConfiguration.apiKey,
                         model: customConfiguration.modelName,
                         messages: [.user(formattedText)],
-                        systemPrompt: systemMessage,
+                        systemPrompt: effectiveSystemMessage,
                         temperature: 0.3,
                         timeout: baseTimeout
                     )

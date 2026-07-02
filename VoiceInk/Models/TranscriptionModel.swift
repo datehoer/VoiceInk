@@ -138,6 +138,7 @@ struct CustomCloudModel: TranscriptionModel, Codable {
     let modelName: String
     let requestMode: CustomTranscriptionRequestMode
     let modelDiscoveryEndpoint: String?
+    let transcriptionPrompt: String?
     let customBodyTemplate: String?
     let isMultilingualModel: Bool
     let supportedLanguages: [String: String]
@@ -147,7 +148,9 @@ struct CustomCloudModel: TranscriptionModel, Codable {
         APIKeyManager.shared.getCustomModelAPIKey(forModelId: id) ?? ""
     }
 
-    init(id: UUID = UUID(), name: String, displayName: String, description: String, apiEndpoint: String, modelName: String, requestMode: CustomTranscriptionRequestMode? = nil, modelDiscoveryEndpoint: String? = nil, customBodyTemplate: String? = nil, isMultilingual: Bool = true, supportedLanguages: [String: String]? = nil) {
+    init(id: UUID = UUID(), name: String, displayName: String, description: String, apiEndpoint: String, modelName: String, requestMode: CustomTranscriptionRequestMode? = nil, modelDiscoveryEndpoint: String? = nil, transcriptionPrompt: String? = nil, customBodyTemplate: String? = nil, isMultilingual: Bool = true, supportedLanguages: [String: String]? = nil) {
+        let trimmedTranscriptionPrompt = transcriptionPrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
         self.id = id
         self.name = name
         self.displayName = displayName
@@ -156,6 +159,7 @@ struct CustomCloudModel: TranscriptionModel, Codable {
         self.modelName = modelName
         self.requestMode = requestMode ?? CustomTranscriptionRequestMode.inferred(from: apiEndpoint)
         self.modelDiscoveryEndpoint = modelDiscoveryEndpoint
+        self.transcriptionPrompt = trimmedTranscriptionPrompt.isEmpty ? nil : trimmedTranscriptionPrompt
         self.customBodyTemplate = customBodyTemplate
         self.isMultilingualModel = isMultilingual
         self.supportedLanguages = supportedLanguages ?? LanguageDictionary.forProvider(isMultilingual: isMultilingual)
@@ -163,7 +167,7 @@ struct CustomCloudModel: TranscriptionModel, Codable {
 
     /// Custom Codable to migrate legacy apiKey from JSON to Keychain.
     private enum CodingKeys: String, CodingKey {
-        case id, name, displayName, description, apiEndpoint, modelName, requestMode, modelDiscoveryEndpoint, customBodyTemplate, isMultilingualModel, supportedLanguages
+        case id, name, displayName, description, apiEndpoint, modelName, requestMode, modelDiscoveryEndpoint, transcriptionPrompt, customBodyTemplate, isMultilingualModel, supportedLanguages
         case apiKey
     }
 
@@ -177,6 +181,8 @@ struct CustomCloudModel: TranscriptionModel, Codable {
         modelName = try container.decode(String.self, forKey: .modelName)
         requestMode = try container.decodeIfPresent(CustomTranscriptionRequestMode.self, forKey: .requestMode) ?? CustomTranscriptionRequestMode.inferred(from: apiEndpoint)
         modelDiscoveryEndpoint = try container.decodeIfPresent(String.self, forKey: .modelDiscoveryEndpoint)
+        let decodedTranscriptionPrompt = try container.decodeIfPresent(String.self, forKey: .transcriptionPrompt)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        transcriptionPrompt = decodedTranscriptionPrompt.isEmpty ? nil : decodedTranscriptionPrompt
         customBodyTemplate = try container.decodeIfPresent(String.self, forKey: .customBodyTemplate)
         isMultilingualModel = try container.decode(Bool.self, forKey: .isMultilingualModel)
         supportedLanguages = try container.decode([String: String].self, forKey: .supportedLanguages)
@@ -196,6 +202,7 @@ struct CustomCloudModel: TranscriptionModel, Codable {
         try container.encode(modelName, forKey: .modelName)
         try container.encode(requestMode, forKey: .requestMode)
         try container.encodeIfPresent(modelDiscoveryEndpoint, forKey: .modelDiscoveryEndpoint)
+        try container.encodeIfPresent(transcriptionPrompt, forKey: .transcriptionPrompt)
         try container.encodeIfPresent(customBodyTemplate, forKey: .customBodyTemplate)
         try container.encode(isMultilingualModel, forKey: .isMultilingualModel)
         try container.encode(supportedLanguages, forKey: .supportedLanguages)
