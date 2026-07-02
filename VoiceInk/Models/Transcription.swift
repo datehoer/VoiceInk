@@ -84,3 +84,51 @@ final class Transcription {
         aiRequestUserMessage = nil
     }
 }
+
+struct TranscriptionTimingSummary: Equatable {
+    let wordCount: Int
+    let audioDuration: TimeInterval
+    let transcriptionDuration: TimeInterval?
+    let enhancementDuration: TimeInterval?
+    let wordsPerMinute: Int
+    let productivityMultiplier: Double
+    let timeSaved: TimeInterval
+    let transcriptionSpeedFactor: Double
+    let totalProcessingDuration: TimeInterval
+
+    init(transcription: Transcription) {
+        let textForCounting = Self.finalTextForCounting(from: transcription)
+        let audioDuration = max(transcription.duration, 0)
+        let transcriptionDuration = transcription.transcriptionDuration.flatMap { $0 > 0 ? $0 : nil }
+        let enhancementDuration = transcription.enhancementDuration.flatMap { $0 > 0 ? $0 : nil }
+        let wordCount = WordCounter.count(in: textForCounting)
+
+        self.wordCount = wordCount
+        self.audioDuration = audioDuration
+        self.transcriptionDuration = transcriptionDuration
+        self.enhancementDuration = enhancementDuration
+        self.wordsPerMinute = DashboardTimeSaving.wordsPerMinute(words: wordCount, duration: audioDuration)
+        self.productivityMultiplier = DashboardTimeSaving.productivityMultiplier(words: wordCount, duration: audioDuration)
+        self.timeSaved = DashboardTimeSaving.timeSaved(words: wordCount, duration: audioDuration)
+        self.transcriptionSpeedFactor = {
+            guard let transcriptionDuration, audioDuration > 0 else {
+                return 0
+            }
+            return audioDuration / transcriptionDuration
+        }()
+        self.totalProcessingDuration = (transcriptionDuration ?? 0) + (enhancementDuration ?? 0)
+    }
+
+    var hasTimingData: Bool {
+        audioDuration > 0 || transcriptionDuration != nil || enhancementDuration != nil
+    }
+
+    private static func finalTextForCounting(from transcription: Transcription) -> String {
+        if let enhancedText = transcription.enhancedText,
+           !enhancedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return enhancedText
+        }
+
+        return transcription.text
+    }
+}

@@ -9,6 +9,7 @@ struct TranscriptionHistoryView: View {
     @State private var showDeleteConfirmation = false
     @State private var isViewCurrentlyVisible = false
     @State private var isAnalysisPanelPresented = false
+    @State private var isTimingPanelPresented = false
     @State private var isLeftSidebarVisible = true
     @State private var isRightSidebarVisible = false
     @State private var leftSidebarWidth: CGFloat = 300
@@ -60,6 +61,7 @@ struct TranscriptionHistoryView: View {
 
     private func openAnalysisPanel() {
         isRightSidebarVisible = false
+        isTimingPanelPresented = false
         isAnalysisPanelPresented = true
     }
 
@@ -69,11 +71,22 @@ struct TranscriptionHistoryView: View {
 
     private func openInfoPanel() {
         isAnalysisPanelPresented = false
+        isTimingPanelPresented = false
         isRightSidebarVisible = true
     }
 
     private func closeInfoPanel() {
         isRightSidebarVisible = false
+    }
+
+    private func openTimingPanel() {
+        isRightSidebarVisible = false
+        isAnalysisPanelPresented = false
+        isTimingPanelPresented = true
+    }
+
+    private func closeTimingPanel() {
+        isTimingPanelPresented = false
     }
     
     var body: some View {
@@ -135,6 +148,30 @@ struct TranscriptionHistoryView: View {
                 onClose: closeAnalysisPanel
             )
             .id(selectedTranscriptions.count)
+        }
+        .sidePanel(isPresented: .init(
+            get: { isTimingPanelPresented },
+            set: { newValue in
+                if !newValue { closeTimingPanel() }
+            }
+        )) {
+            if let transcription = selectedTranscription {
+                TranscriptionTimingPanel(
+                    transcription: transcription,
+                    onClose: closeTimingPanel
+                )
+                .id(transcription.id)
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "chart.bar.xaxis")
+                        .font(.system(size: 40))
+                        .foregroundColor(.secondary)
+                    Text("No Timing Data")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .onAppear {
             isViewCurrentlyVisible = true
@@ -262,7 +299,11 @@ struct TranscriptionHistoryView: View {
     private var centerPaneView: some View {
         Group {
             if let transcription = selectedTranscription {
-                TranscriptionDetailView(transcription: transcription, onInfoTap: openInfoPanel)
+                TranscriptionDetailView(
+                    transcription: transcription,
+                    onInfoTap: openInfoPanel,
+                    onAnalyzeTap: openTimingPanel
+                )
                     .id(transcription.id)
             } else {
                 ScrollView {

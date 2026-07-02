@@ -125,6 +125,30 @@ struct DashboardMetricTotals: Equatable, Sendable {
     var duration: TimeInterval = 0
 }
 
+struct DashboardProductivityMetrics: Equatable, Sendable {
+    let sessionCount: Int
+    let wordCount: Int
+    let totalDuration: TimeInterval
+    let estimatedTypingTime: TimeInterval
+    let timeSaved: TimeInterval
+    let averageWordsPerMinute: Int
+    let productivityMultiplier: Double
+
+    init(totals: DashboardMetricTotals) {
+        self.sessionCount = totals.count
+        self.wordCount = totals.words
+        self.totalDuration = max(totals.duration, 0)
+        self.estimatedTypingTime = DashboardTimeSaving.estimatedTypingTime(words: totals.words)
+        self.timeSaved = DashboardTimeSaving.timeSaved(words: totals.words, duration: totals.duration)
+        self.averageWordsPerMinute = DashboardTimeSaving.wordsPerMinute(words: totals.words, duration: totals.duration)
+        self.productivityMultiplier = DashboardTimeSaving.productivityMultiplier(words: totals.words, duration: totals.duration)
+    }
+
+    var hasData: Bool {
+        sessionCount > 0 || wordCount > 0 || totalDuration > 0
+    }
+}
+
 struct DashboardProductivityPoint: Equatable, Identifiable, Sendable {
     var id: Date { date }
     let date: Date
@@ -311,6 +335,22 @@ enum DashboardTimeSaving {
 
     static func timeSaved(words: Int, duration: TimeInterval) -> TimeInterval {
         max(estimatedTypingTime(words: words) - duration, 0)
+    }
+
+    static func wordsPerMinute(words: Int, duration: TimeInterval) -> Int {
+        guard words > 0, duration > 0 else {
+            return 0
+        }
+
+        return Int((Double(words) / (duration / 60)).rounded())
+    }
+
+    static func productivityMultiplier(words: Int, duration: TimeInterval) -> Double {
+        guard words > 0, duration > 0 else {
+            return 0
+        }
+
+        return Double(wordsPerMinute(words: words, duration: duration)) / averageTypingSpeedWordsPerMinute
     }
 }
 

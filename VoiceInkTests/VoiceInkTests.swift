@@ -68,4 +68,43 @@ struct VoiceInkTests {
         #expect(TranscriptionRequestTimeout.seconds(in: defaults) == 1_200)
     }
 
+    @Test func dashboardProductivityMetricsCalculateDictationStats() {
+        let metrics = DashboardProductivityMetrics(
+            totals: DashboardMetricTotals(
+                count: 4,
+                words: 1_580,
+                duration: 600
+            )
+        )
+
+        #expect(metrics.wordCount == 1_580)
+        #expect(metrics.sessionCount == 4)
+        #expect(metrics.totalDuration == 600)
+        #expect(metrics.averageWordsPerMinute == 158)
+        #expect(abs(metrics.productivityMultiplier - 3.95) < 0.001)
+        #expect(metrics.timeSaved == 1_770)
+    }
+
+    @Test func transcriptionTimingSummaryCalculatesSingleRecordingStats() {
+        let text = Array(repeating: "word", count: 200).joined(separator: " ")
+        let transcription = Transcription(
+            text: text,
+            duration: 120,
+            transcriptionModelName: "Whisper Large",
+            transcriptionDuration: 8,
+            enhancementDuration: 2,
+            transcriptionStatus: .completed
+        )
+
+        let summary = TranscriptionTimingSummary(transcription: transcription)
+
+        #expect(summary.wordCount == 200)
+        #expect(summary.audioDuration == 120)
+        #expect(summary.wordsPerMinute == 100)
+        #expect(abs(summary.productivityMultiplier - 2.5) < 0.001)
+        #expect(summary.timeSaved == 180)
+        #expect(summary.transcriptionSpeedFactor == 15)
+        #expect(summary.totalProcessingDuration == 10)
+    }
+
 }
