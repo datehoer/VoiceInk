@@ -1,5 +1,33 @@
 import Foundation
 
+enum TranscriptionPromptSettings {
+    static let userDefaultsKey = "TranscriptionPrompt"
+    static let customLanguagePromptsKey = "CustomLanguagePrompts"
+
+    static func currentPrompt(in defaults: UserDefaults = .standard) -> String? {
+        let prompt = defaults.string(forKey: userDefaultsKey) ?? ""
+        return prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : prompt
+    }
+
+    static func saveCustomPrompt(_ prompt: String, for language: String, in defaults: UserDefaults = .standard) {
+        let trimmedLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedLanguage.isEmpty else { return }
+
+        var customPrompts = defaults.dictionary(forKey: customLanguagePromptsKey) as? [String: String] ?? [:]
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedPrompt.isEmpty {
+            customPrompts.removeValue(forKey: trimmedLanguage)
+        } else {
+            customPrompts[trimmedLanguage] = prompt
+        }
+
+        defaults.set(customPrompts, forKey: customLanguagePromptsKey)
+        defaults.set(prompt, forKey: userDefaultsKey)
+        defaults.synchronize()
+        NotificationCenter.default.post(name: .promptDidChange, object: nil)
+    }
+}
+
 struct TranscriptionRequestContext {
     let language: String?
     let prompt: String?
@@ -7,15 +35,11 @@ struct TranscriptionRequestContext {
     static var currentDefaults: TranscriptionRequestContext {
         TranscriptionRequestContext(
             language: UserDefaults.standard.string(forKey: "SelectedLanguage") ?? "auto",
-            prompt: UserDefaults.standard.string(forKey: "TranscriptionPrompt")
+            prompt: TranscriptionPromptSettings.currentPrompt()
         )
     }
 
     func scoped(to model: any TranscriptionModel) -> TranscriptionRequestContext {
-        guard model.provider == .whisper else {
-            return TranscriptionRequestContext(language: language, prompt: nil)
-        }
-
         return self
     }
 }

@@ -77,6 +77,8 @@ private struct TranscriptionModelSettingsView: View {
         Form {
             FillerWordsSettingsSection()
 
+            TranscriptionPromptSettingsSection()
+
             Section {
                 Stepper(
                     value: $transcriptionTimeoutSeconds,
@@ -122,6 +124,61 @@ private struct TranscriptionModelSettingsView: View {
             return String(format: String(localized: "%d minutes"), minutes)
         }
         return String(format: String(localized: "%d min %d sec"), minutes, remainder)
+    }
+}
+
+private struct TranscriptionPromptSettingsSection: View {
+    @AppStorage(TranscriptionPromptSettings.userDefaultsKey) private var transcriptionPrompt = ""
+    @AppStorage("SelectedLanguage") private var selectedLanguage = "en"
+
+    var body: some View {
+        Section {
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $transcriptionPrompt)
+                    .font(.system(size: 12))
+                    .frame(minHeight: 92)
+                    .scrollContentBackground(.hidden)
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(AppTheme.Surface.control)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(AppTheme.Border.control.opacity(0.45), lineWidth: 1)
+                            )
+                    )
+
+                if transcriptionPrompt.isEmpty {
+                    Text("Add words, names, formatting hints, or domain context")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 14)
+                        .allowsHitTesting(false)
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Clear Prompt") {
+                    transcriptionPrompt = ""
+                    savePrompt("")
+                }
+                .disabled(transcriptionPrompt.isEmpty)
+            }
+        } header: {
+            HStack(spacing: 4) {
+                Text("Transcription Prompt")
+                InfoTip("Sent as guidance to local Whisper, OpenAI-compatible transcription, Gemini transcription, and custom transcription templates that use {{prompt}}.")
+            }
+        }
+        .onChange(of: transcriptionPrompt) { _, newValue in
+            savePrompt(newValue)
+        }
+    }
+
+    private func savePrompt(_ prompt: String) {
+        TranscriptionPromptSettings.saveCustomPrompt(prompt, for: selectedLanguage)
     }
 }
 

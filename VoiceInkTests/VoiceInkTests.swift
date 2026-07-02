@@ -67,6 +67,45 @@ struct VoiceInkTests {
         #expect(model.customBodyTemplate == nil)
     }
 
+    @Test func transcriptionRequestContextKeepsPromptForCloudModels() {
+        let context = TranscriptionRequestContext(language: "en", prompt: "Use product names exactly.")
+        let cloudModel = CloudModel(
+            name: "whisper-large-v3-turbo",
+            displayName: "Groq Whisper",
+            description: "OpenAI-compatible cloud transcription",
+            provider: .groq,
+            speed: 0.65,
+            accuracy: 0.95,
+            isMultilingual: true,
+            supportedLanguages: ["en": "English"]
+        )
+        let customModel = CustomCloudModel(
+            name: "custom-transcribe",
+            displayName: "Custom Transcribe",
+            description: "Custom transcription model",
+            apiEndpoint: "https://api.example.com/v1/audio/transcriptions",
+            modelName: "whisper-1"
+        )
+
+        #expect(context.scoped(to: cloudModel).prompt == "Use product names exactly.")
+        #expect(context.scoped(to: customModel).prompt == "Use product names exactly.")
+    }
+
+    @Test func openAIAudioTranscriptionsRequestIncludesPromptField() throws {
+        let boundary = "Boundary-Test"
+        let body = OpenAICompatibleTranscriptionService.makeAudioTranscriptionsRequestBody(
+            audioData: Data([0x01, 0x02]),
+            fileName: "sample.wav",
+            modelName: "whisper-1",
+            boundary: boundary,
+            context: TranscriptionRequestContext(language: "en", prompt: "Use product names exactly.")
+        )
+        let bodyString = try #require(String(data: body, encoding: .utf8))
+
+        #expect(bodyString.contains("name=\"prompt\""))
+        #expect(bodyString.contains("Use product names exactly."))
+    }
+
     @Test func modelDiscoveryEndpointIsDerivedFromCommonOpenAICompatiblePaths() throws {
         #expect(
             CustomModelDiscoveryEndpointResolver.endpoint(from: "https://api.example.com/v1/audio/transcriptions")?

@@ -22,6 +22,19 @@ struct GroqProvider: CloudProvider {
     ]}
 
     func transcribe(audioData: Data, fileName: String, apiKey: String, model: String, language: String?, customVocabulary: [String], timeout: TimeInterval) async throws -> String {
+        try await transcribe(
+            audioData: audioData,
+            fileName: fileName,
+            apiKey: apiKey,
+            model: model,
+            language: language,
+            customVocabulary: customVocabulary,
+            prompt: nil,
+            timeout: timeout
+        )
+    }
+
+    func transcribe(audioData: Data, fileName: String, apiKey: String, model: String, language: String?, customVocabulary _: [String], prompt: String?, timeout: TimeInterval) async throws -> String {
         return try await OpenAITranscriptionClient.transcribe(
             baseURL: URL(string: "https://api.groq.com/openai")!,
             audioData: audioData,
@@ -29,6 +42,7 @@ struct GroqProvider: CloudProvider {
             apiKey: apiKey,
             model: model,
             language: language,
+            prompt: prompt,
             timeout: timeout
         )
     }

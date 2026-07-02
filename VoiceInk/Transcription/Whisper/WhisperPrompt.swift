@@ -3,9 +3,7 @@ import Foundation
 
 @MainActor
 class WhisperPrompt: ObservableObject {
-    @Published var transcriptionPrompt: String = UserDefaults.standard.string(forKey: "TranscriptionPrompt") ?? ""
-    
-    private let customPromptsKey = "CustomLanguagePrompts"
+    @Published var transcriptionPrompt: String = UserDefaults.standard.string(forKey: TranscriptionPromptSettings.userDefaultsKey) ?? ""
     
     // Store user-customized prompts
     private var customPrompts: [String: String] = [:]
@@ -74,13 +72,13 @@ class WhisperPrompt: ObservableObject {
     }
     
     private func loadCustomPrompts() {
-        if let savedPrompts = UserDefaults.standard.dictionary(forKey: customPromptsKey) as? [String: String] {
+        if let savedPrompts = UserDefaults.standard.dictionary(forKey: TranscriptionPromptSettings.customLanguagePromptsKey) as? [String: String] {
             customPrompts = savedPrompts
         }
     }
     
     private func saveCustomPrompts() {
-        UserDefaults.standard.set(customPrompts, forKey: customPromptsKey)
+        UserDefaults.standard.set(customPrompts, forKey: TranscriptionPromptSettings.customLanguagePromptsKey)
         UserDefaults.standard.synchronize() // Force immediate synchronization
     }
     
@@ -93,7 +91,7 @@ class WhisperPrompt: ObservableObject {
         let prompt = basePrompt.isEmpty ? "" : basePrompt
         
         transcriptionPrompt = prompt
-        UserDefaults.standard.set(prompt, forKey: "TranscriptionPrompt")
+        UserDefaults.standard.set(prompt, forKey: TranscriptionPromptSettings.userDefaultsKey)
         UserDefaults.standard.synchronize() // Force immediate synchronization
         
         // Notify that the prompt has changed

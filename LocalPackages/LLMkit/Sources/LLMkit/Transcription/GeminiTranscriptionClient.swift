@@ -12,6 +12,7 @@ public struct GeminiTranscriptionClient: Sendable {
     ///   - apiKey: Google AI / Gemini API key.
     ///   - model: Model name (e.g. `"gemini-2.5-flash"`, `"gemini-2.5-pro"`).
     ///   - mimeType: MIME type of the audio (default `"audio/wav"`).
+    ///   - prompt: Optional transcription prompt/hint.
     ///   - timeout: Request timeout in seconds (default 60).
     /// - Returns: The transcribed text.
     public static func transcribe(
@@ -19,6 +20,7 @@ public struct GeminiTranscriptionClient: Sendable {
         apiKey: String,
         model: String,
         mimeType: String = "audio/wav",
+        prompt: String? = nil,
         timeout: TimeInterval = 60
     ) async throws -> String {
         try validateAPIKey(apiKey)
@@ -34,11 +36,15 @@ public struct GeminiTranscriptionClient: Sendable {
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
 
         let base64Audio = audioData.base64EncodedString()
+        var instruction = "Please transcribe this audio file. Provide only the transcribed text."
+        if let prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            instruction += "\nUse this transcription prompt/context as guidance: \(prompt)"
+        }
 
         let requestBody = GeminiRequest(
             contents: [
                 GeminiContent(parts: [
-                    GeminiPart(text: "Please transcribe this audio file. Provide only the transcribed text.", inlineData: nil),
+                    GeminiPart(text: instruction, inlineData: nil),
                     GeminiPart(text: nil, inlineData: GeminiInlineData(mimeType: mimeType, data: base64Audio))
                 ])
             ]

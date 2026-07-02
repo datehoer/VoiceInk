@@ -135,7 +135,7 @@ class OpenAICompatibleTranscriptionService {
         return try JSONSerialization.data(withJSONObject: jsonObject)
     }
 
-    private static func makeAudioTranscriptionsRequestBody(audioData: Data, fileName: String, modelName: String, boundary: String, context: TranscriptionRequestContext) -> Data {
+    static func makeAudioTranscriptionsRequestBody(audioData: Data, fileName: String, modelName: String, boundary: String, context: TranscriptionRequestContext) -> Data {
         let selectedLanguage = context.language ?? "auto"
         let crlf = "\r\n"
         var body = Data()
@@ -160,6 +160,10 @@ class OpenAICompatibleTranscriptionService {
 
         if selectedLanguage != "auto" && !selectedLanguage.isEmpty {
             field("language", selectedLanguage)
+        }
+
+        if let prompt = context.prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            field("prompt", prompt)
         }
 
         append("--\(boundary)--\(crlf)")

@@ -11,6 +11,7 @@ protocol CloudProvider: Sendable {
     var isStreamingOnly: Bool { get }
 
     func transcribe(audioData: Data, fileName: String, apiKey: String, model: String, language: String?, customVocabulary: [String], timeout: TimeInterval) async throws -> String
+    func transcribe(audioData: Data, fileName: String, apiKey: String, model: String, language: String?, customVocabulary: [String], prompt: String?, timeout: TimeInterval) async throws -> String
     func makeStreamingProvider(modelContext: ModelContext) -> (any StreamingTranscriptionProvider)?
     func verifyAPIKey(_ key: String) async -> (isValid: Bool, errorMessage: String?)
 }
@@ -22,6 +23,18 @@ extension CloudProvider {
     /// Providers that support batch transcription override this with their real implementation.
     func transcribe(audioData: Data, fileName: String, apiKey: String, model: String, language: String?, customVocabulary: [String], timeout: TimeInterval) async throws -> String {
         throw CloudTranscriptionError.unsupportedProvider
+    }
+
+    func transcribe(audioData: Data, fileName: String, apiKey: String, model: String, language: String?, customVocabulary: [String], prompt _: String?, timeout: TimeInterval) async throws -> String {
+        try await transcribe(
+            audioData: audioData,
+            fileName: fileName,
+            apiKey: apiKey,
+            model: model,
+            language: language,
+            customVocabulary: customVocabulary,
+            timeout: timeout
+        )
     }
 }
 
