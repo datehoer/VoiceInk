@@ -42,6 +42,7 @@ enum PromptTemplates {
                     # Rules
                     - Use readable paragraphs and conventional abbreviations when helpful.
                     - Prefer a clean, neutral style unless the dictated speech clearly implies a different tone.
+                    - Keep the user's original word choices when a phrase is ambiguous or could be a transcription uncertainty.
                     """,
                 useSystemInstructions: true
             ),

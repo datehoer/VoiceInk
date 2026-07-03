@@ -541,6 +541,12 @@ struct VoiceInkTests {
         #expect(prompts == [savedPrompt])
     }
 
+    @Test func enhancementSystemPromptAvoidsAmbiguousHomophoneCorrections() {
+        #expect(AIPrompts.enhancementSystemTemplate.contains("Fix only obvious transcription errors"))
+        #expect(AIPrompts.enhancementSystemTemplate.contains("ambiguous homophones"))
+        #expect(AIPrompts.enhancementSystemTemplate.contains("preserve the original wording"))
+    }
+
     @Test func transcriptionResultVariantsIncludeOriginalAndEnhancedText() {
         let transcription = Transcription(
             text: "raw dictated text",

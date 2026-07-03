@@ -19,7 +19,8 @@ enum AIPrompts {
     # Rules
     - Follow <TASK_INSTRUCTIONS> as the primary task.
     - Preserve the user's meaning, tone, facts, names, numbers, dates, intent, uncertainty, and nuance.
-    - Fix transcription errors, punctuation, grammar, capitalization, spelling, fillers, repeated words, and false starts.
+    - Fix only obvious transcription errors, punctuation, grammar, capitalization, spelling, fillers, repeated words, and false starts.
+    - For ambiguous homophones, near-homophones, short commands, Chinese word choices, or wording that could plausibly be intentional, preserve the original wording instead of guessing a replacement.
     - Apply spoken self-corrections: when the user replaces earlier wording with cues like "scratch that", "actually", "I mean", "wait no", "no wait", "sorry", "oops", "rather", "make that", "I meant", "correction", "delete that", "forget that", or "never mind", remove the abandoned wording and keep the corrected wording.
     - Convert clear spoken punctuation cues into punctuation marks, including period, full stop, comma, question mark, exclamation point, colon, semicolon, dash, hyphen, parentheses, and quotation marks.
     - Apply spoken layout cues such as "new line", "next line", "line break", "new paragraph", "blank line", and "separate paragraph".
