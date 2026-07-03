@@ -547,6 +547,15 @@ struct VoiceInkTests {
         #expect(AIPrompts.enhancementSystemTemplate.contains("preserve the original wording"))
     }
 
+    @Test func audioRetryModeResolutionAllowsDefaultAndPrefersActiveMode() {
+        let activeMode = ModeConfig(name: "Active", isAIEnhancementEnabled: false, selectedTranscriptionModelName: "active-model")
+        let selectedMode = ModeConfig(name: "Selected", isAIEnhancementEnabled: false, selectedTranscriptionModelName: "selected-model")
+
+        #expect(AudioRetryModeResolution.modeForRetranscription(selectedMode: nil, currentEffectiveMode: nil) == nil)
+        #expect(AudioRetryModeResolution.modeForRetranscription(selectedMode: nil, currentEffectiveMode: activeMode)?.id == activeMode.id)
+        #expect(AudioRetryModeResolution.modeForRetranscription(selectedMode: selectedMode, currentEffectiveMode: activeMode)?.id == selectedMode.id)
+    }
+
     @Test func transcriptionResultVariantsIncludeOriginalAndEnhancedText() {
         let transcription = Transcription(
             text: "raw dictated text",

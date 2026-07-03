@@ -631,13 +631,13 @@ struct AudioPlayerView: View {
     }
 
     private func retranscribeAudio() {
-        guard let selectedMode else {
-            showErrorNotification(String(localized: "No mode selected"))
-            return
-        }
+        let retranscriptionMode = AudioRetryModeResolution.modeForRetranscription(
+            selectedMode: selectedMode,
+            currentEffectiveMode: modeManager.currentEffectiveConfiguration
+        )
 
         guard let transcriptionConfiguration = ModeRuntimeResolver.transcriptionConfiguration(
-            mode: selectedMode,
+            mode: retranscriptionMode,
             transcriptionModelManager: engine.transcriptionModelManager
         ) else {
             showErrorNotification(String(localized: "No transcription model selected"))
@@ -652,7 +652,7 @@ struct AudioPlayerView: View {
                 let _ = try await transcriptionService.retranscribeAudio(
                     from: url,
                     using: transcriptionConfiguration.model,
-                    mode: selectedMode
+                    mode: retranscriptionMode
                 )
                 await MainActor.run {
                     isRetranscribing = false
