@@ -15,6 +15,7 @@ enum StarterModeFactory {
     ) {
         let manager = ModeManager.shared
         let requestedKinds = Set(kinds)
+        let defaultTemplateID = StarterModeDefaultPolicy.defaultTemplateID(for: requestedKinds)
         let availableInstalledApps = requestedKinds.contains(.email)
             ? (installedApps ?? InstalledApps.load())
             : []
@@ -29,7 +30,8 @@ enum StarterModeFactory {
                     transcriptionModelName: transcriptionModelName,
                     isRealtimeTranscriptionEnabled: isRealtimeTranscriptionEnabled,
                     selectedLanguage: selectedLanguage,
-                    installedApps: availableInstalledApps
+                    installedApps: availableInstalledApps,
+                    isDefault: $0.id == defaultTemplateID
                 )
             }
 
@@ -69,7 +71,8 @@ enum StarterModeFactory {
         transcriptionModelName: String,
         isRealtimeTranscriptionEnabled: Bool,
         selectedLanguage: String,
-        installedApps: [InstalledAppInfo]
+        installedApps: [InstalledAppInfo],
+        isDefault: Bool
     ) -> ModeConfig {
         ModeConfig(
             id: template.id,
@@ -92,7 +95,7 @@ enum StarterModeFactory {
             outputMode: template.outputMode,
             autoSendKey: .none,
             isEnabled: true,
-            isDefault: template.isDefault
+            isDefault: isDefault
         )
     }
 

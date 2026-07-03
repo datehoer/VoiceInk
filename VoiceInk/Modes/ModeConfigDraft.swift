@@ -39,7 +39,7 @@ struct ModeConfigDraft {
             websiteConfigs = []
             triggerGroups = []
             triggerWords = []
-            isAIEnhancementEnabled = false
+            isAIEnhancementEnabled = Self.defaultEnhancementEnabled(inheriting: inheritedConfig)
             selectedPromptId = inheritedConfig?.selectedPrompt.flatMap { UUID(uuidString: $0) }
             selectedTranscriptionModelName = inheritedConfig?.selectedTranscriptionModelName
             isRealtimeTranscriptionEnabled = true
@@ -88,6 +88,10 @@ struct ModeConfigDraft {
 
     var canSave: Bool {
         !name.isEmpty
+    }
+
+    static func defaultEnhancementEnabled(inheriting config: ModeConfig?) -> Bool {
+        config?.isAIEnhancementEnabled ?? false
     }
 
     mutating func applyAddModeDefaults(snapshot: ModeFormWarmupSnapshot) {

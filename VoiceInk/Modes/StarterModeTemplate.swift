@@ -44,10 +44,13 @@ struct StarterModeTemplate: Identifiable {
 }
 
 enum StarterModeCatalog {
+    static let cleanModeID = UUID(uuidString: "10000000-0000-0000-0000-000000000001")!
+    static let enhancementModeID = UUID(uuidString: "10000000-0000-0000-0000-000000000002")!
+
     static let templates: [StarterModeTemplate] = [
         StarterModeTemplate(
             kind: .clean,
-            id: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!,
+            id: cleanModeID,
             name: "Dictation",
             icon: .symbol("mic.fill"),
             description: String(localized: "Fast transcription with no AI enhancement."),
@@ -61,7 +64,7 @@ enum StarterModeCatalog {
         ),
         StarterModeTemplate(
             kind: .enhance,
-            id: UUID(uuidString: "10000000-0000-0000-0000-000000000002")!,
+            id: enhancementModeID,
             name: "Enhancement",
             icon: .symbol("sparkles"),
             description: "Clean up dictated text while preserving your meaning.",
@@ -119,5 +122,24 @@ enum StarterModeCatalog {
 
     static var ids: Set<UUID> {
         Set(templates.map(\.id))
+    }
+}
+
+enum StarterModeDefaultPolicy {
+    static func defaultKind(for kinds: Set<StarterModeKind>) -> StarterModeKind? {
+        if kinds.contains(.enhance) {
+            return .enhance
+        }
+
+        if kinds.contains(.clean) {
+            return .clean
+        }
+
+        return StarterModeCatalog.templates.first { kinds.contains($0.kind) }?.kind
+    }
+
+    static func defaultTemplateID(for kinds: Set<StarterModeKind>) -> UUID? {
+        guard let defaultKind = defaultKind(for: kinds) else { return nil }
+        return StarterModeCatalog.templates.first { $0.kind == defaultKind }?.id
     }
 }

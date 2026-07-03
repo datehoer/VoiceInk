@@ -378,6 +378,115 @@ struct VoiceInkTests {
         #expect(result.errorMessage == "Custom JSON template must be valid JSON")
     }
 
+    @Test func starterModeDefaultPolicyPrefersEnhancementWhenAvailable() {
+        #expect(StarterModeDefaultPolicy.defaultKind(for: [.clean]) == .clean)
+        #expect(StarterModeDefaultPolicy.defaultKind(for: [.clean, .enhance]) == .enhance)
+        #expect(StarterModeDefaultPolicy.defaultTemplateID(for: [.clean, .enhance]) == StarterModeCatalog.enhancementModeID)
+    }
+
+    @Test func starterModeDefaultMigrationPromotesInstalledDictationDefaultToEnhancement() throws {
+        let activeID = StarterModeCatalog.cleanModeID
+        let result = StarterModeEnhancementDefaultMigration.upgraded(
+            configurations: [
+                ModeConfig(
+                    id: StarterModeCatalog.cleanModeID,
+                    name: "Dictation",
+                    isAIEnhancementEnabled: false,
+                    isDefault: true
+                ),
+                ModeConfig(
+                    id: StarterModeCatalog.enhancementModeID,
+                    name: "Enhancement",
+                    isAIEnhancementEnabled: true,
+                    selectedPrompt: PromptTemplates.defaultPromptId.uuidString,
+                    selectedAIProvider: AIProvider.gemini.rawValue,
+                    selectedAIModel: AIProvider.gemini.defaultModel,
+                    isDefault: false
+                )
+            ],
+            activeConfigurationID: activeID
+        )
+
+        let cleanMode = try #require(result.configurations.first { $0.id == StarterModeCatalog.cleanModeID })
+        let enhancementMode = try #require(result.configurations.first { $0.id == StarterModeCatalog.enhancementModeID })
+
+        #expect(result.didChange)
+        #expect(cleanMode.isDefault == false)
+        #expect(enhancementMode.isDefault == true)
+        #expect(enhancementMode.isAIEnhancementEnabled == true)
+        #expect(result.activeConfigurationID == StarterModeCatalog.enhancementModeID)
+    }
+
+    @Test func starterModeDefaultMigrationPreservesCustomDefaultMode() {
+        let customID = UUID()
+        let result = StarterModeEnhancementDefaultMigration.upgraded(
+            configurations: [
+                ModeConfig(
+                    id: StarterModeCatalog.cleanModeID,
+                    name: "Dictation",
+                    isAIEnhancementEnabled: false,
+                    isDefault: false
+                ),
+                ModeConfig(
+                    id: StarterModeCatalog.enhancementModeID,
+                    name: "Enhancement",
+                    isAIEnhancementEnabled: true,
+                    selectedPrompt: PromptTemplates.defaultPromptId.uuidString,
+                    selectedAIProvider: AIProvider.gemini.rawValue,
+                    selectedAIModel: AIProvider.gemini.defaultModel,
+                    isDefault: false
+                ),
+                ModeConfig(
+                    id: customID,
+                    name: "Custom workflow",
+                    isAIEnhancementEnabled: false,
+                    isDefault: true
+                )
+            ],
+            activeConfigurationID: customID
+        )
+
+        #expect(result.didChange == false)
+        #expect(result.configurations.first { $0.id == customID }?.isDefault == true)
+        #expect(result.activeConfigurationID == customID)
+    }
+
+    @Test func newModeDraftInheritsEnhancementStateFromEffectiveMode() {
+        let enhancementMode = ModeConfig(
+            name: "Enhancement",
+            isAIEnhancementEnabled: true,
+            selectedPrompt: PromptTemplates.defaultPromptId.uuidString,
+            selectedAIProvider: AIProvider.gemini.rawValue,
+            selectedAIModel: AIProvider.gemini.defaultModel
+        )
+        let dictationMode = ModeConfig(
+            name: "Dictation",
+            isAIEnhancementEnabled: false
+        )
+
+        #expect(ModeConfigDraft.defaultEnhancementEnabled(inheriting: enhancementMode) == true)
+        #expect(ModeConfigDraft.defaultEnhancementEnabled(inheriting: dictationMode) == false)
+        #expect(ModeConfigDraft.defaultEnhancementEnabled(inheriting: nil) == false)
+    }
+
+    @Test func enhancementRuntimeFallbackEnablesOnlyWhenNoModeHasPromptAndProvider() {
+        let prompt = CustomPrompt(title: "Default", promptText: "Clean up dictated text.")
+        let disabledMode = ModeConfig(
+            name: "Dictation",
+            isAIEnhancementEnabled: false
+        )
+        let enabledMode = ModeConfig(
+            name: "Enhancement",
+            isAIEnhancementEnabled: true
+        )
+
+        #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: nil, prompt: prompt, provider: .gemini) == true)
+        #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: nil, prompt: nil, provider: .gemini) == false)
+        #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: nil, prompt: prompt, provider: nil) == false)
+        #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: disabledMode, prompt: prompt, provider: .gemini) == false)
+        #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: enabledMode, prompt: nil, provider: nil) == true)
+    }
+
     @Test func cloudTranscriptionTimeoutDefaultsToLongerRequestWindow() throws {
         let defaults = try #require(UserDefaults(suiteName: "VoiceInkTests.timeout.default"))
         defaults.removePersistentDomain(forName: "VoiceInkTests.timeout.default")

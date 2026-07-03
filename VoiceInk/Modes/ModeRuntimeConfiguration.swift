@@ -102,7 +102,8 @@ enum ModeRuntimeResolver {
         let mode = mode ?? ModeManager.shared.currentEffectiveConfiguration
         let prompt = resolvedPrompt(
             promptId: mode?.selectedPrompt,
-            enhancementService: enhancementService
+            enhancementService: enhancementService,
+            usesDefaultFallback: mode == nil
         )
         let provider = resolvedProvider(
             providerName: mode?.selectedAIProvider,
@@ -116,7 +117,7 @@ enum ModeRuntimeResolver {
 
         return EnhancementRuntimeConfiguration(
             mode: mode,
-            isEnabled: mode?.isAIEnhancementEnabled ?? false,
+            isEnabled: defaultEnhancementEnabled(mode: mode, prompt: prompt, provider: provider),
             prompt: prompt,
             provider: provider,
             modelName: modelName,
@@ -137,6 +138,18 @@ enum ModeRuntimeResolver {
         )
     }
 
+    nonisolated static func defaultEnhancementEnabled(
+        mode: ModeConfig?,
+        prompt: CustomPrompt?,
+        provider: AIProvider?
+    ) -> Bool {
+        if let mode {
+            return mode.isAIEnhancementEnabled
+        }
+
+        return prompt != nil && provider != nil
+    }
+
     private static func resolvedModel(
         named modelName: String?,
         transcriptionModelManager: TranscriptionModelManager
@@ -151,14 +164,16 @@ enum ModeRuntimeResolver {
 
     private static func resolvedPrompt(
         promptId: String?,
-        enhancementService: AIEnhancementService
+        enhancementService: AIEnhancementService,
+        usesDefaultFallback: Bool = false
     ) -> CustomPrompt? {
-        guard let promptId,
-              let uuid = UUID(uuidString: promptId) else {
-            return nil
+        if let promptId,
+           let uuid = UUID(uuidString: promptId),
+           let prompt = enhancementService.allPrompts.first(where: { $0.id == uuid }) {
+            return prompt
         }
 
-        return enhancementService.allPrompts.first { $0.id == uuid }
+        return usesDefaultFallback ? enhancementService.allPrompts.first : nil
     }
 
     private static func resolvedProvider(
