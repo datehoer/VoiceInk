@@ -7,23 +7,9 @@ struct AudioFileRow: View {
     let onRemove: () -> Void
     let onRetry: () -> Void
 
-    @State private var selectedTab: TranscriptionTab = .original
-
-    private var displayText: String {
-        switch selectedTab {
-        case .original:
-            return item.transcription?.text ?? ""
-        case .enhanced:
-            return item.transcription?.enhancedText ?? ""
-        }
-    }
-
-    /// Text for copy/save — matches visible content regardless of expansion state.
     private var actionText: String {
-        if isExpanded {
-            return displayText
-        }
-        return item.transcription?.enhancedText ?? item.transcription?.text ?? ""
+        guard let transcription = item.transcription else { return "" }
+        return TranscriptionResultVariant.preferredCopyText(for: transcription)
     }
 
     var body: some View {
@@ -131,22 +117,11 @@ struct AudioFileRow: View {
         .onTapGesture { onToggleExpand() }
 
         if isExpanded, let transcription = item.transcription {
-            if transcription.enhancedText != nil {
-                HStack(spacing: 4) {
-                    tabButton(tab: .original)
-                    tabButton(tab: .enhanced)
-                    Spacer()
-                }
-            }
-
-            ScrollView {
-                MarkdownContentView(
-                    displayText,
-                    fontSize: 14,
-                    foregroundColor: AppTheme.Text.primary
-                )
-            }
-            .frame(maxHeight: 350)
+            TranscriptionResultStack(
+                transcription: transcription,
+                maxBubbleHeight: 260,
+                spacing: 12
+            )
 
             HStack(spacing: 12) {
                 if let model = transcription.transcriptionModelName {
@@ -162,23 +137,6 @@ struct AudioFileRow: View {
                 Spacer()
             }
         }
-    }
-
-    private func tabButton(tab: TranscriptionTab) -> some View {
-        Button {
-            selectedTab = tab
-        } label: {
-            Text(LocalizedStringKey(tab.rawValue))
-                .font(.subheadline.weight(selectedTab == tab ? .semibold : .regular))
-                .foregroundColor(selectedTab == tab ? AppTheme.Accent.primary : .secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(selectedTab == tab ? AppTheme.Accent.fill : Color.clear)
-                )
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Failed

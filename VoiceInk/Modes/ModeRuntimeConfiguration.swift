@@ -100,24 +100,31 @@ enum ModeRuntimeResolver {
         aiService: AIService
     ) -> EnhancementRuntimeConfiguration {
         let mode = mode ?? ModeManager.shared.currentEffectiveConfiguration
+        let defaultProviderName = mode == nil ? DefaultEnhancementSettings.configuredProviderName() : nil
+        let defaultModelName = mode == nil ? DefaultEnhancementSettings.configuredModelName() : nil
         let prompt = resolvedPrompt(
             promptId: mode?.selectedPrompt,
             enhancementService: enhancementService,
             usesDefaultFallback: mode == nil
         )
         let provider = resolvedProvider(
-            providerName: mode?.selectedAIProvider,
+            providerName: mode?.selectedAIProvider ?? defaultProviderName,
             aiService: aiService
         )
         let modelName = resolvedEnhancementModelName(
             provider: provider,
-            configuredModelName: mode?.selectedAIModel,
+            configuredModelName: mode?.selectedAIModel ?? defaultModelName,
             aiService: aiService
         )
 
         return EnhancementRuntimeConfiguration(
             mode: mode,
-            isEnabled: defaultEnhancementEnabled(mode: mode, prompt: prompt, provider: provider),
+            isEnabled: defaultEnhancementEnabled(
+                mode: mode,
+                prompt: prompt,
+                provider: provider,
+                defaultEnhancementEnabled: DefaultEnhancementSettings.isEnabled()
+            ),
             prompt: prompt,
             provider: provider,
             modelName: modelName,
@@ -141,13 +148,14 @@ enum ModeRuntimeResolver {
     nonisolated static func defaultEnhancementEnabled(
         mode: ModeConfig?,
         prompt: CustomPrompt?,
-        provider: AIProvider?
+        provider: AIProvider?,
+        defaultEnhancementEnabled: Bool = true
     ) -> Bool {
         if let mode {
             return mode.isAIEnhancementEnabled
         }
 
-        return prompt != nil && provider != nil
+        return defaultEnhancementEnabled && prompt != nil && provider != nil
     }
 
     private static func resolvedModel(
@@ -201,16 +209,11 @@ enum ModeRuntimeResolver {
         }
 
         let models = aiService.availableModels(for: provider)
-        if let configuredModelName,
-           !configuredModelName.isEmpty,
-           (models.isEmpty || models.contains(configuredModelName)) {
-            return configuredModelName
-        }
-
-        if let firstModel = models.first {
-            return firstModel
-        }
-
-        return provider.defaultModel
+        return DefaultEnhancementSettings.resolvedModelName(
+            configuredModelName: configuredModelName,
+            availableModels: models,
+            selectedModel: aiService.selectedModel(for: provider),
+            providerDefaultModel: provider.defaultModel
+        )
     }
 }

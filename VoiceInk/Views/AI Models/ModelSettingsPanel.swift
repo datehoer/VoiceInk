@@ -201,6 +201,11 @@ private struct TranscriptionPromptSettingsSection: View {
 }
 
 private struct EnhancementModelSettingsView: View {
+    @EnvironmentObject private var aiService: AIService
+
+    @AppStorage(DefaultEnhancementSettings.isEnabledKey) private var isDefaultEnhancementEnabled = true
+    @AppStorage(DefaultEnhancementSettings.providerKey) private var defaultEnhancementProvider = ""
+    @AppStorage(DefaultEnhancementSettings.modelKey) private var defaultEnhancementModel = ""
     @AppStorage("SkipShortEnhancement") private var isSkipShortEnhancementEnabled = true
     @AppStorage("ShortEnhancementWordThreshold") private var shortEnhancementWordThreshold = 3
     @AppStorage("EnhancementTimeoutSeconds") private var enhancementTimeoutSeconds = 7
@@ -209,6 +214,35 @@ private struct EnhancementModelSettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Enhance transcriptions by default", isOn: $isDefaultEnhancementEnabled)
+
+                if isDefaultEnhancementEnabled {
+                    if providerOptions.isEmpty {
+                        LabeledContent("Default provider") {
+                            Text("No providers connected")
+                                .foregroundStyle(.secondary)
+                                .italic()
+                        }
+                    } else {
+                        Picker("Default provider", selection: providerBinding) {
+                            ForEach(providerOptions, id: \.self) { provider in
+                                Text(provider.rawValue).tag(provider)
+                            }
+                        }
+
+                        if let provider = selectedDefaultProvider {
+                            defaultModelPicker(for: provider)
+                        }
+                    }
+                }
+            } header: {
+                HStack(spacing: 4) {
+                    Text("Default Enhancement")
+                    InfoTip("Applies when no mode is selected. A mode's own enhancement setting and model still take priority.")
+                }
+            }
+
             Section {
                 ExpandableSettingsRow(
                     isExpanded: $isShortEnhancementExpanded,
@@ -250,6 +284,142 @@ private struct EnhancementModelSettingsView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear(perform: ensureValidDefaultSelection)
+        .onChange(of: isDefaultEnhancementEnabled) { _, _ in
+            postSettingsChanged()
+        }
+        .onChange(of: aiService.connectedProviders) { _, _ in
+            ensureValidDefaultSelection()
+        }
+    }
+
+    private var providerOptions: [AIProvider] {
+        aiService.connectedProviders
+    }
+
+    private var selectedDefaultProvider: AIProvider? {
+        if let provider = AIProvider(rawValue: defaultEnhancementProvider),
+           providerOptions.contains(provider) {
+            return provider
+        }
+
+        return providerOptions.first
+    }
+
+    private var providerBinding: Binding<AIProvider> {
+        Binding(
+            get: { selectedDefaultProvider ?? providerOptions.first ?? .gemini },
+            set: { provider in
+                defaultEnhancementProvider = provider.rawValue
+                defaultEnhancementModel = defaultModelSelection(for: provider)
+                if provider == .ollama {
+                    aiService.refreshOllamaAvailabilityInBackground()
+                }
+                postSettingsChanged()
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func defaultModelPicker(for provider: AIProvider) -> some View {
+        if provider == .localCLI {
+            LabeledContent("Default model") {
+                Text("Default")
+                    .foregroundStyle(.secondary)
+            }
+            .onAppear {
+                if !defaultEnhancementModel.isEmpty {
+                    defaultEnhancementModel = ""
+                    postSettingsChanged()
+                }
+            }
+        } else {
+            let models = modelOptions(for: provider)
+
+            if models.isEmpty {
+                LabeledContent("Default model") {
+                    Text(provider == .openRouter ? LocalizedStringKey("No models loaded") : LocalizedStringKey("No models available"))
+                        .foregroundStyle(.secondary)
+                        .italic()
+                }
+            } else {
+                Picker("Default model", selection: modelBinding(for: provider)) {
+                    ForEach(models, id: \.self) { model in
+                        Text(model).tag(model)
+                    }
+                }
+            }
+
+            if provider == .openRouter {
+                Button("Refresh Models") {
+                    Task { await aiService.fetchOpenRouterModels() }
+                }
+                .help("Refresh models")
+            } else if provider == .ollama {
+                Button("Refresh Models") {
+                    aiService.refreshOllamaAvailabilityInBackground()
+                }
+                .disabled(aiService.isOllamaRefreshing)
+                .help("Refresh models")
+            }
+        }
+    }
+
+    private func modelBinding(for provider: AIProvider) -> Binding<String> {
+        Binding(
+            get: { defaultModelSelection(for: provider) },
+            set: { model in
+                defaultEnhancementModel = model
+                postSettingsChanged()
+            }
+        )
+    }
+
+    private func modelOptions(for provider: AIProvider) -> [String] {
+        var models = aiService.availableModels(for: provider)
+        let selectedModel = defaultModelSelection(for: provider)
+
+        if !selectedModel.isEmpty,
+           !models.contains(selectedModel) {
+            models.insert(selectedModel, at: 0)
+        }
+
+        return models
+    }
+
+    private func defaultModelSelection(for provider: AIProvider) -> String {
+        guard provider != .localCLI else { return "" }
+
+        return DefaultEnhancementSettings.resolvedModelName(
+            configuredModelName: defaultEnhancementModel,
+            availableModels: aiService.availableModels(for: provider),
+            selectedModel: aiService.selectedModel(for: provider),
+            providerDefaultModel: provider.defaultModel
+        )
+    }
+
+    private func ensureValidDefaultSelection() {
+        guard let provider = selectedDefaultProvider else { return }
+
+        var didChange = false
+        if defaultEnhancementProvider != provider.rawValue {
+            defaultEnhancementProvider = provider.rawValue
+            didChange = true
+        }
+
+        let model = defaultModelSelection(for: provider)
+        if defaultEnhancementModel != model {
+            defaultEnhancementModel = model
+            didChange = true
+        }
+
+        if didChange {
+            postSettingsChanged()
+        }
+    }
+
+    private func postSettingsChanged() {
+        NotificationCenter.default.post(name: .AppSettingsDidChange, object: nil)
     }
 }
 

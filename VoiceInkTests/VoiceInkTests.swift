@@ -483,8 +483,69 @@ struct VoiceInkTests {
         #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: nil, prompt: prompt, provider: .gemini) == true)
         #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: nil, prompt: nil, provider: .gemini) == false)
         #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: nil, prompt: prompt, provider: nil) == false)
+        #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: nil, prompt: prompt, provider: .gemini, defaultEnhancementEnabled: false) == false)
         #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: disabledMode, prompt: prompt, provider: .gemini) == false)
         #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: enabledMode, prompt: nil, provider: nil) == true)
+    }
+
+    @Test func defaultEnhancementModelSelectionKeepsConfiguredValidModel() {
+        let options = ["gemini-3.5-flash", "gemini-2.5-pro"]
+
+        #expect(DefaultEnhancementSettings.resolvedModelName(
+            configuredModelName: "gemini-2.5-pro",
+            availableModels: options,
+            selectedModel: "gemini-3.5-flash",
+            providerDefaultModel: "gemini-3.5-flash"
+        ) == "gemini-2.5-pro")
+
+        #expect(DefaultEnhancementSettings.resolvedModelName(
+            configuredModelName: "missing-model",
+            availableModels: options,
+            selectedModel: "gemini-3.5-flash",
+            providerDefaultModel: "gemini-3.5-flash"
+        ) == "gemini-3.5-flash")
+    }
+
+    @Test func defaultEnhancementSettingDefaultsToEnabledUntilUserDisablesIt() throws {
+        let defaults = try #require(UserDefaults(suiteName: "VoiceInkTests.defaultEnhancement"))
+        defaults.removePersistentDomain(forName: "VoiceInkTests.defaultEnhancement")
+        defer { defaults.removePersistentDomain(forName: "VoiceInkTests.defaultEnhancement") }
+
+        #expect(DefaultEnhancementSettings.isEnabled(in: defaults) == true)
+
+        defaults.set(false, forKey: DefaultEnhancementSettings.isEnabledKey)
+        #expect(DefaultEnhancementSettings.isEnabled(in: defaults) == false)
+    }
+
+    @Test func transcriptionResultVariantsIncludeOriginalAndEnhancedText() {
+        let transcription = Transcription(
+            text: "raw dictated text",
+            duration: 12,
+            enhancedText: "Polished dictated text.",
+            transcriptionStatus: .completed
+        )
+
+        let variants = TranscriptionResultVariant.variants(for: transcription)
+
+        #expect(variants.count == 2)
+        #expect(variants[0].tab == .original)
+        #expect(variants[0].text == "raw dictated text")
+        #expect(variants[1].tab == .enhanced)
+        #expect(variants[1].text == "Polished dictated text.")
+    }
+
+    @Test func transcriptionResultVariantsSkipBlankEnhancedText() {
+        let transcription = Transcription(
+            text: "raw dictated text",
+            duration: 12,
+            enhancedText: "   ",
+            transcriptionStatus: .completed
+        )
+
+        let variants = TranscriptionResultVariant.variants(for: transcription)
+
+        #expect(variants.count == 1)
+        #expect(variants.first?.tab == .original)
     }
 
     @Test func cloudTranscriptionTimeoutDefaultsToLongerRequestWindow() throws {

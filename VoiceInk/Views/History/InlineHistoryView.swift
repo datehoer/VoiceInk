@@ -470,17 +470,6 @@ private struct HistoryCardRow: View {
     let onToggleCheck: () -> Void
     let onShowInfo: () -> Void
 
-    @State private var selectedTab: TranscriptionTab = .original
-
-    private var displayText: String {
-        switch selectedTab {
-        case .original:
-            return transcription.text
-        case .enhanced:
-            return transcription.enhancedText ?? ""
-        }
-    }
-
     private var hasAudioFile: Bool {
         if let urlString = transcription.audioFileURL,
            let url = URL(string: urlString),
@@ -535,40 +524,11 @@ private struct HistoryCardRow: View {
 
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Tabs
-            if transcription.enhancedText != nil {
-                HStack(spacing: 4) {
-                    ForEach(TranscriptionTab.allCases, id: \.self) { tab in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                selectedTab = tab
-                            }
-                        } label: {
-                            Text(LocalizedStringKey(tab.rawValue))
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(selectedTab == tab ? .primary : .secondary)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule()
-                                        .fill(selectedTab == tab ? AppTheme.Surface.controlActive : Color.clear)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    Spacer()
-                }
-            }
-
-            ScrollView {
-                MarkdownContentView(
-                    displayText,
-                    fontSize: 14,
-                    foregroundColor: AppTheme.Text.primary
-                )
-            }
-            .frame(maxHeight: 350)
-            .hoverCopyButton(textToCopy: displayText)
+            TranscriptionResultStack(
+                transcription: transcription,
+                maxBubbleHeight: 260,
+                spacing: 12
+            )
 
             if hasAudioFile, let urlString = transcription.audioFileURL,
                let url = URL(string: urlString) {
