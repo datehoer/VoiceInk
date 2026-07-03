@@ -40,12 +40,7 @@ class AIEnhancementService: ObservableObject {
         self.screenCaptureService = ScreenCaptureService()
         self.customVocabularyService = CustomVocabularyService.shared
 
-        if let savedPromptsData = UserDefaults.standard.data(forKey: "customPrompts"),
-           let decodedPrompts = try? JSONDecoder().decode([CustomPrompt].self, from: savedPromptsData) {
-            self.customPrompts = decodedPrompts
-        } else {
-            self.customPrompts = []
-        }
+        self.customPrompts = EnhancementPromptStore.loadPrompts()
 
         repairModePromptSelections()
 
@@ -516,9 +511,7 @@ class AIEnhancementService: ObservableObject {
     }
 
     private func savePrompts() {
-        if let encoded = try? JSONEncoder().encode(customPrompts) {
-            UserDefaults.standard.set(encoded, forKey: "customPrompts")
-        }
+        EnhancementPromptStore.savePrompts(customPrompts)
     }
 }
 

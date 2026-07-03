@@ -517,6 +517,30 @@ struct VoiceInkTests {
         #expect(DefaultEnhancementSettings.isEnabled(in: defaults) == false)
     }
 
+    @Test func enhancementPromptStoreSeedsBuiltInPromptsWhenUnset() throws {
+        let defaults = try #require(UserDefaults(suiteName: "VoiceInkTests.promptStore.seed"))
+        defaults.removePersistentDomain(forName: "VoiceInkTests.promptStore.seed")
+        defer { defaults.removePersistentDomain(forName: "VoiceInkTests.promptStore.seed") }
+
+        let prompts = EnhancementPromptStore.loadPrompts(from: defaults)
+
+        #expect(prompts.contains { $0.id == PromptTemplates.defaultPromptId })
+        #expect(prompts.isEmpty == false)
+    }
+
+    @Test func enhancementPromptStorePreservesSavedPrompts() throws {
+        let defaults = try #require(UserDefaults(suiteName: "VoiceInkTests.promptStore.saved"))
+        defaults.removePersistentDomain(forName: "VoiceInkTests.promptStore.saved")
+        defer { defaults.removePersistentDomain(forName: "VoiceInkTests.promptStore.saved") }
+        let savedPrompt = CustomPrompt(title: "Saved", promptText: "Use this saved prompt.")
+        let data = try JSONEncoder().encode([savedPrompt])
+        defaults.set(data, forKey: EnhancementPromptStore.userDefaultsKey)
+
+        let prompts = EnhancementPromptStore.loadPrompts(from: defaults)
+
+        #expect(prompts == [savedPrompt])
+    }
+
     @Test func transcriptionResultVariantsIncludeOriginalAndEnhancedText() {
         let transcription = Transcription(
             text: "raw dictated text",
