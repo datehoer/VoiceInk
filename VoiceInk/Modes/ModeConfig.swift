@@ -359,6 +359,16 @@ class ModeManager: ObservableObject {
         return configurations.first { $0.isEnabled && $0.isDefault }
     }
 
+    func setDefaultTranscriptionModelName(_ modelName: String) {
+        guard var defaultConfiguration = getDefaultConfiguration(),
+              defaultConfiguration.selectedTranscriptionModelName != modelName else {
+            return
+        }
+
+        defaultConfiguration.selectedTranscriptionModelName = modelName
+        updateConfiguration(defaultConfiguration)
+    }
+
     var currentEffectiveConfiguration: ModeConfig? {
         if let activeConfiguration,
            let latestActive = configurations.first(where: { $0.id == activeConfiguration.id }),

@@ -132,6 +132,12 @@ struct ModeConfigEditorView: View {
             modeManager.updateConfiguration(config)
         }
 
+        if config.isDefault,
+           let modelName = config.selectedTranscriptionModelName,
+           let model = transcriptionModelManager.allAvailableModels.first(where: { $0.name == modelName }) {
+            transcriptionModelManager.setDefaultTranscriptionModel(model)
+        }
+
         didSaveConfiguration = true
         onDismiss()
     }

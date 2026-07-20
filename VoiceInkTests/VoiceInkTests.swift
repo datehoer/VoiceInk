@@ -488,6 +488,41 @@ struct VoiceInkTests {
         #expect(ModeRuntimeResolver.defaultEnhancementEnabled(mode: enabledMode, prompt: nil, provider: nil) == true)
     }
 
+    @MainActor @Test func transcriptionRuntimeUsesSelectedDefaultModelWhenModeDoesNotSpecifyOne() throws {
+        let whisperModelManager = WhisperModelManager(
+            modelsDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        )
+        let fluidAudioModelManager = FluidAudioModelManager()
+        let transcriptionModelManager = TranscriptionModelManager(
+            whisperModelManager: whisperModelManager,
+            fluidAudioModelManager: fluidAudioModelManager
+        )
+        let firstModel = CustomCloudModel(
+            name: "first-transcription-model",
+            displayName: "First transcription model",
+            description: "Test model",
+            apiEndpoint: "https://example.com/v1/audio/transcriptions",
+            modelName: "first"
+        )
+        let selectedModel = CustomCloudModel(
+            name: "selected-transcription-model",
+            displayName: "Selected transcription model",
+            description: "Test model",
+            apiEndpoint: "https://example.com/v1/audio/transcriptions",
+            modelName: "selected"
+        )
+        transcriptionModelManager.allAvailableModels = [firstModel, selectedModel]
+        transcriptionModelManager.currentTranscriptionModel = selectedModel
+
+        let mode = ModeConfig(name: "Default", isAIEnhancementEnabled: false)
+        let configuration = ModeRuntimeResolver.transcriptionConfiguration(
+            mode: mode,
+            transcriptionModelManager: transcriptionModelManager
+        )
+
+        #expect(configuration?.model.name == selectedModel.name)
+    }
+
     @Test func defaultEnhancementModelSelectionKeepsConfiguredValidModel() {
         let options = ["gemini-3.5-flash", "gemini-2.5-pro"]
 

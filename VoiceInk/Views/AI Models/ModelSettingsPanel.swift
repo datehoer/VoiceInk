@@ -71,10 +71,13 @@ private struct ModelSettingsTabBar: View {
 }
 
 private struct TranscriptionModelSettingsView: View {
+    @EnvironmentObject private var transcriptionModelManager: TranscriptionModelManager
     @AppStorage(TranscriptionRequestTimeout.userDefaultsKey) private var transcriptionTimeoutSeconds = TranscriptionRequestTimeout.defaultSeconds
 
     var body: some View {
         Form {
+            defaultTranscriptionModelSection
+
             FillerWordsSettingsSection()
 
             TranscriptionPromptSettingsSection()
@@ -111,6 +114,67 @@ private struct TranscriptionModelSettingsView: View {
                 transcriptionTimeoutSeconds = sanitized
             }
         }
+    }
+
+    private var defaultTranscriptionModelSection: some View {
+        Section {
+            if usableModels.isEmpty {
+                LabeledContent("Default model") {
+                    Text("No models available")
+                        .foregroundStyle(.secondary)
+                        .italic()
+                }
+            } else {
+                Picker("Default model", selection: defaultModelBinding) {
+                    ForEach(usableModels, id: \.name) { model in
+                        Text(model.displayName).tag(model.name)
+                    }
+                }
+
+                Text("This model is used by the default transcription path. A mode with its own model selection still takes priority.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            HStack(spacing: 4) {
+                Text("Default Transcription")
+                InfoTip("Choose which configured transcription model to use when the active mode does not specify another model.")
+            }
+        }
+        .onAppear(perform: ensureValidDefaultSelection)
+        .onChange(of: transcriptionModelManager.usableModels.map(\.name)) { _, _ in
+            ensureValidDefaultSelection()
+        }
+    }
+
+    private var usableModels: [any TranscriptionModel] {
+        transcriptionModelManager.usableModels
+    }
+
+    private var defaultModelBinding: Binding<String> {
+        Binding(
+            get: {
+                transcriptionModelManager.currentTranscriptionModel?.name ?? usableModels.first?.name ?? ""
+            },
+            set: { modelName in
+                guard let model = usableModels.first(where: { $0.name == modelName }) else { return }
+                transcriptionModelManager.setDefaultTranscriptionModel(model)
+                ModeManager.shared.setDefaultTranscriptionModelName(model.name)
+            }
+        )
+    }
+
+    private func ensureValidDefaultSelection() {
+        guard let firstModel = usableModels.first else { return }
+
+        if let currentModel = transcriptionModelManager.currentTranscriptionModel,
+           usableModels.contains(where: { $0.name == currentModel.name }) {
+            return
+        }
+
+        transcriptionModelManager.setDefaultTranscriptionModel(firstModel)
+        ModeManager.shared.setDefaultTranscriptionModelName(firstModel.name)
     }
 
     private func formatDuration(_ seconds: Int) -> String {

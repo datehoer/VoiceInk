@@ -162,12 +162,19 @@ enum ModeRuntimeResolver {
         named modelName: String?,
         transcriptionModelManager: TranscriptionModelManager
     ) -> (any TranscriptionModel)? {
+        let usableModels = transcriptionModelManager.usableModels
+
         if let modelName,
-           let model = transcriptionModelManager.usableModels.first(where: { $0.name == modelName }) {
+           let model = usableModels.first(where: { $0.name == modelName }) {
             return model
         }
 
-        return transcriptionModelManager.usableModels.first
+        if let currentModel = transcriptionModelManager.currentTranscriptionModel,
+           let model = usableModels.first(where: { $0.name == currentModel.name }) {
+            return model
+        }
+
+        return usableModels.first
     }
 
     private static func resolvedPrompt(
